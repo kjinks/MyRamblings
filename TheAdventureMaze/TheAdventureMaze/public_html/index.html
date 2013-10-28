@@ -1,0 +1,67 @@
+<!--
+To change this template, choose Tools | Templates
+and open the template in the editor.
+-->
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>
+            The Adventure Maze
+        </title>
+        <style>
+            .mainView
+            {
+               
+                margin-top: 100px;
+                margin-left: 200px;
+                width: 400px;
+                height: 400px;   
+                background-color: #440000;
+            }
+            .mainViewFrame
+            {
+                
+                height: 600px;
+                background-color: #004400;
+            }
+        </style>
+        <script type="text/javascript">     
+
+            
+            function drawGrid()
+            {
+                var theViewPort = document.getElementById("viewPort");
+                var theViewPortContext = theViewPort.getContext("2d");
+                
+                var imageData = theViewPortContext.createImageData(400,400);
+                
+                for (i= 0; i < imageData.data.length; i+=4)
+                {
+                    //draw the grid
+                    r = 255;
+                    g = 125;
+                    b = 0;
+
+                    imageData.data[i+0] = 255;
+                    imageData.data[i+1] = r;
+                    imageData.data[i+2] = g;
+                    imageData.data[i+2] = b;
+                    //setPixel(imageData, x, y, r, g, b, 255);
+                }
+
+                
+                theViewPortContext.putImageData(imageData, 0, 0);
+            }
+            
+            
+        </script>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    </head>
+    <body onload="drawGrid();">
+        <div class="mainViewFrame">
+            
+        <canvas class="mainView" id="viewPort"></canvas>
+        
+        </div>
+    </body>
+</html>
