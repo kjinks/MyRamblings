@@ -1,0 +1,315 @@
+<!--
+My name is Ken Jinks and this is the game.
+-->
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>The Game</title>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+        <script type="text/javascript">
+            isWhitespace = function(testcase)
+            {
+                var whiteSpace = /[\n\s\t\r]+/;
+                
+                return whiteSpace.test(testcase);
+            };
+            
+            function GetUserInput(keypress)
+            {
+                var key = String.fromCharCode(keypress.charCode ? keypress.charCode : keypress.keyCode);
+                if (typeof(GetUserInput.Words) === 'undefined')
+                {
+                    GetUserInput.Words = new Array();
+                    GetUserInput.CurrentString = "";                        
+                }
+
+                if (isWhitespace(key))
+                {
+                    //a word has been typed
+                    GetUserInput.Words.push(GetUserInput.CurrentString);
+                    GetUserInput.CurrentString = "";
+                }
+                else
+                {
+                    GetUserInput.CurrentString += key;
+                }
+
+            };
+            
+            function Adjective()
+            {
+                this.type = "Adjective";
+                //adjectives are properties of nouns                        
+                this.Name  = "nothing";
+                this.Value = 0;
+
+            };//Adjective
+
+            function Adverb()
+            {
+                this.type = "Adverb";
+                //adverbs are properties of verbs
+                this.Name = "nothing";
+                this.Value = 0;
+            };//Adverb
+
+            function Verb()
+            {
+                this.type = "Verb";
+                var adverbs = new Array();
+            };//Verb
+
+            function Noun()
+            {
+                if (typeof(Noun.nextId) === 'undefined')
+                {
+                    Noun.nextId = 0;
+                }
+                else
+                {
+                    Noun.nextId++;
+                }
+
+                this.id         = Noun.nextId;
+                this.type       = "Noun";
+                this.adjectives = new Array();
+
+                //function      :this.AddAdjective()
+                //parameters    :adjective - the adjective
+                //              :to add
+                //description   :pushs adjective onto
+                //              :noun's array of adjectives
+                this.AddAdjective = function(adjective)
+                {
+                    if (adjective.type === 'Adjective')
+                    {
+                        this.adjectives.push(adjective);
+                    }
+                };
+
+                this.TransmitVerb = function(verb)
+                {
+
+                };
+
+                this.ReceiveVerb = function(verb)
+                {
+
+                };
+
+
+                //function      :this.StateMachine()
+                //description   :The state machine takes
+                //              :in symbol, and depending
+                //              :on its current state act
+                //              :out a particular function
+                this.StateMachine = function()
+                {
+                    this.StateMachine.symbols   = new Array();
+                    this.StateMachine.states    = new Array();
+
+                    this.StateMachine.AddSymbol = function(newSymbol)
+                    {
+                        //a symbol row contains a symbol and a set of states
+                        //which are conditional statements about the values
+                        //of the noun's adjectives
+
+                    };
+
+                    this.StateMachine.AddState = function(newState)
+                    {
+                        //a state is a function which tests if a 
+                        //logical condition is true
+
+                    };
+
+                    //function      :this.StateMachine.FindSymbol(symbol)
+                    //parameters    :symbol: the symbol to be found
+                    //description   :this function finds the index of the 
+                    //              :given symbol in the symbols array
+                    this.StateMachine.FindSymbol = function(symbol)
+                    {
+                        var indexOfSymbol = -1;
+                        for (var i = 0; i < this.StateMachine.symbols.length; i++)
+                        {
+                            if(this.StateMachine.symbols[i] === symbol)
+                            {
+                                indexOfSymbol = i;
+                                break;
+                            }
+                        }
+
+                        return indexOfSymbol;
+                    };//this.StateMachine.FindSymbol
+
+                    //function      :this.StateMachine.FindState(state)
+                    //parameters    :state: the state to be found
+                    //description   :this function finds the index of the 
+                    //              :given state in the states array
+                    this.StateMachine.FindState = function(state)
+                    {
+                        var indexOfState = -1;
+                        for (var i = 0; i < this.StateMachine.states.length; i++)
+                        {
+                            if(this.StateMachine.states[i] === state)
+                            {
+                                indexOfState = i;
+                                break;
+                            }
+                        }
+                        return indexOfState;
+                    };//this.StateMachine.FindSymbol();
+                };//this.StateMachine()
+            };//Noun
+                    
+            function TheGame()
+            {
+                TheGame.UserInput = function(userInput)
+                {
+                    
+                };
+                                
+                function World()
+                {
+                    //in the world there are objects
+                    //all objects are nouns and nouns
+                    //pass verbs to other nouns
+                    //the verbs have adjectives that
+                    //effect both the sender and receiver 
+                    //of the verb
+                    
+                    //the user interacts with the world 
+                    //through simple two word phrases
+                    //the verb and the noun the verb is going
+                    //to. such as: open door, unlock lock
+                    //or more complex, two nouns and a verb
+                    //in the form of: break window with brick  
+                    //
+//bend wire with pliers - an example
+//
+//pliers =(bend)=> wire
+//
+//1) World looks up bend
+//2) World find adjectives for bend in nouns,
+//pliers and wire. bend requires psi and size
+//
+//adjective to compare, transmitter vs receiver action table{ <, =, > }
+//
+//psi, { txNoun += bend | txNoun += bend, rxNoun += bend | rxNoun += bend }
+//size, { rxNoun += scratch | | }
+//
+//if pliers psi is larger than the wire
+//the verb bend will apply the adjective bend to 
+//the wire, if the pliers were soft the pliers would bend
+//if the wire were instructed to bend the pliers the wire would bend
+//
+//but if the pliers where smaller than the wire, the wire
+//would get scratched
+//
+//                            
+                    //acoustic absorption
+                    //mass/density
+                    //corrosion resistance
+                    //reactivity
+                    //permeability
+                    //maleability/brittleness | psi
+                    //hardness/softness | psi 
+                    //resilience - ability to absorb energy
+                    //optical absorption
+                    //colour
+                    //luminosity
+                    //reflectivity
+                    //radiation level
+                    //ignition temperature/flamability
+                    //boiling/melting/sublimation/freezing/condesation points
+                    //specific heat capacity
+                    
+                    
+                    World.Things = new Array();
+                    
+                    this.Build = function()
+                    {
+                        WoodProperty = function ()
+                        {
+                            var wood = new Noun();
+
+                            var description = new Adjective();
+
+                            wood.Name        = "wood";
+
+                            description.Name  = "flamability";
+                            description.Value = 0.5; 
+                            wood.AddAdjective(description);
+
+                            description       = new Adjective();
+                            description.Name  = "hardness";
+                            description.Value = 0.5;     
+                            wood.AddAdjective(description);
+
+                            description       = new Adjective();
+                            description.Name  = "conductivity";
+                            description.Value = 0.1;     
+                            wood.AddAdjective(description);
+                            
+                            return wood;
+                        };//WoodProperty()
+                        
+                        MetalProperty = function ()
+                        {
+                            var metal = new Noun();
+
+                            var description = new Adjective();
+
+                            metal.Name        = "metal";
+
+                            description.Name  = "flamability";
+                            description.Value = 0.0; 
+                            metal.AddAdjective(description);
+
+                            description       = new Adjective();
+                            description.Name  = "hardness";
+                            description.Value = 0.9;     
+                            metal.AddAdjective(description);
+
+                            description       = new Adjective();
+                            description.Name  = "conductivity";
+                            description.Value = 1.0;     
+                            metal.AddAdjective(description);
+                            
+                            return metal;
+                        };//MetalProperty
+                        
+                        var a = 0;
+                        var Door = WoodProperty();
+                        var Axe = MetalProperty();
+                        
+                        Door.Name = "door";
+                        Axe.Name  = "axe";
+
+                        World.Things[Door.id] = Door;
+                        World.Things[Axe.id]  = Axe;
+                        
+                        a++;
+                    };//TheWorld.Build()
+                };//World
+                
+                TheGame.world = new World();
+                TheGame.world.Build();
+            };//TheGame
+            
+            TheGame();
+            
+        </script>
+    </head>
+    <body>
+        <div>
+            <p id="toUser">
+                Your eyes are closed.
+            </p>
+
+            <textarea rows="4" cols="80" id="userInput" onkeypress="GetUserInput(event);">
+            </textarea>
+
+        </div>
+    </body>
+</html>
