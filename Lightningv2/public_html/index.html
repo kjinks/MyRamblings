@@ -1,0 +1,297 @@
+<!--
+To change this template, choose Tools | Templates
+and open the template in the editor.
+-->
+<!DOCTYPE html>
+<html>
+    <head>
+        <title></title>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+        <script type="text/javascript">
+            //class         :Canvas()
+            //description   :holds the pointers to the html elements
+            //              :resizes canvas element to the size of the browser 
+            //              :inner dimensions
+            function Canvas()
+            {
+                Canvas.background = document.getElementById("background");
+                Canvas.midground  = document.getElementById("midground");
+                Canvas.foreground = document.getElementById("foreground");
+                
+                Canvas.background.context = Canvas.background.getContext("2d");
+                Canvas.midground.context  = Canvas.midground.getContext("2d");
+                Canvas.foreground.context = Canvas.foreground.getContext("2d");
+                
+                Canvas.Resize = function()
+                {
+                    Canvas.width  = window.innerWidth;
+                    Canvas.height = window.innerHeight;
+                    
+                    Canvas.background.width = Canvas.width;
+                    Canvas.background.height = Canvas.height;
+                    Canvas.midground.width = Canvas.width;
+                    Canvas.midground.height = Canvas.height;
+                    Canvas.foreground.width = Canvas.width;
+                    Canvas.foreground.height = Canvas.height;
+                };
+                
+                Canvas.Resize();
+                
+                //function      :Canvas.pctX(xPct)
+                //parameter     :xPct the percent of the width
+                //description   :converts percent to pixel
+                //returns       :xPct expressed in pixels
+                Canvas.pctX = function(xPct)
+                {
+                    return (xPct/100) * Canvas.width;
+                };
+                
+                //function      :Canvas.pctY(yPct)
+                //parameter     :yPct the percent of the height
+                //description   :converts percent to pixel
+                //returns       :yPct expressed in pixels               
+                Canvas.pctY = function(yPct)
+                {
+                    return (yPct/100) * Canvas.height;
+                };
+            };
+            
+            function Line(x1, y1, x2, y2)
+            {
+                this.x1 = x1;
+                this.y1 = y1;
+                this.x2 = x2;
+                this.y2 = y2;
+            }
+            
+            
+            //function      :Lightning()
+            //description   :this function contains methods for creating and drawing
+            //              :lightning
+            function Lightning()
+            {
+                Lightning.Build = function(x, y, size, sizeRatio, angle, spread, maxFork, depth, lines)
+                {
+                    if (typeof(lines) === 'undefined')
+                    {
+                        lines = new Array();
+                    }
+                    //the new angle is chosen at random that is +/- 1/2 spread of the
+                    //current angle                  
+                    var newAngle = angle + (Math.random() * spread) - (spread / 2.0);
+                    var newX = x + (Math.cos(newAngle) * size);
+                    var newY = y + (Math.sin(newAngle) * size);
+                    var numBranches = Math.floor(Math.random() * maxFork) + 1;
+
+                    var line = new Line(x, y, newX, newY);
+
+                    //create a hash table where the hash key is the
+                    //depth value, this will be used when drawing 
+                    //the lighting for animation
+                    if (typeof(lines[depth]) === 'undefined')
+                    {
+                        lines[depth] = new Array();
+                    }
+
+                    lines[depth].push(line);
+
+                    if (depth > 0)
+                    {
+                        if (Math.random() > 0.7)
+                        {
+                            for (var i = 0; i < numBranches; i++)
+                            {
+                                Lightning.Build(newX, newY, size / sizeRatio, sizeRatio, angle, spread, maxFork, depth - 1, lines);
+                            }
+                        }
+                        else
+                        {
+                            Lightning.Build(newX, newY, size / sizeRatio, sizeRatio, angle, spread, maxFork, depth - 1, lines);
+                        }
+                    }
+                };
+                
+                this.Lines = new Array();
+
+                this.Build = function(x, y, size, angle, spread, maxFork, depth)
+                {
+                    this.Lines = new Array();
+                    
+                    Lightning.Build(x, y, size, Math.pow(8, 1/depth), angle, spread, maxFork, depth, this.Lines);
+                };
+                
+                this.Draw = function(minDepth, maxDepth, context)
+                {
+                    if (maxDepth <= this.Lines.length && 
+                        maxDepth >= minDepth && 
+                        minDepth >= 0)
+                    {
+                        for (var i = minDepth; i <= maxDepth; i++)
+                        {
+                            for (var j = 0; j < this.Lines[i].length; j++)
+                            {
+                                context.beginPath();
+                                context.moveTo(this.Lines[i][j].x1, this.Lines[i][j].y1);
+                                context.lineTo(this.Lines[i][j].x2, this.Lines[i][j].y2);
+                                context.stroke();
+                            }
+                        }
+                    }
+                };
+                
+                this.DrawTrunk = function(minDepth, maxDepth, context)
+                {
+                    if (maxDepth <= this.Lines.length && 
+                        maxDepth >= minDepth && 
+                        minDepth >= 0)
+                    {
+                        for (var i = minDepth; i <= maxDepth; i++)
+                        {
+                            context.beginPath();
+                            context.moveTo(this.Lines[i][0].x1, this.Lines[i][0].y1);
+                            context.lineTo(this.Lines[i][0].x2, this.Lines[i][0].y2);
+                            context.stroke();
+                        }
+                    }
+                };
+            }
+            //function      :CanvasTest()
+            //description   :draws a number of shapes on the three canvas layers
+            //              :will demonstrate that drawing overlaps by layer
+            function CanvasTest()
+            {
+                //Canvas test
+                /*
+                Canvas.background.context.fillStyle = "hsla(50,100%,50%,0.8)";
+                Canvas.background.context.fillRect(Canvas.pctX(0),Canvas.pctY(0),Canvas.pctX(33.33),Canvas.pctY(33.33));
+                Canvas.midground.context.fillStyle = "hsla(170,100%,50%,0.8)";
+                Canvas.midground.context.fillRect(Canvas.pctX(33.33),Canvas.pctY(33.33),Canvas.pctX(33.33),Canvas.pctY(33.33));
+                Canvas.foreground.context.fillStyle = "hsla(290,100%,50%,0.8)";
+                Canvas.foreground.context.fillRect(Canvas.pctX(66.67),Canvas.pctY(66.67),Canvas.pctX(33.33),Canvas.pctY(33.33));
+  
+                Canvas.foreground.context.strokeStyle = "rgba(0,255,0,1.0)";
+                Canvas.foreground.context.lineWidth = 2;  
+                Canvas.midground.context.strokeStyle = "rgba(255,0,0,1.0)";
+                Canvas.midground.context.lineWidth = 5;               
+                Canvas.background.context.strokeStyle = "rgba(0,0,255,1.0)";
+                Canvas.background.context.lineWidth = 5;
+                
+                for (var r = 0; r < Canvas.pctX(33.33); r += 10)
+                {
+                    Canvas.foreground.context.beginPath();
+                    Canvas.foreground.context.arc(Canvas.pctX(50), Canvas.pctY(50), r * 2, 0, 2*Math.PI);
+                    Canvas.foreground.context.stroke();
+                    Canvas.midground.context.beginPath();
+                    Canvas.midground.context.arc(Canvas.pctX(66.67), Canvas.pctY(66.67), r, 0, 2*Math.PI);
+                    Canvas.midground.context.stroke();
+                    Canvas.background.context.beginPath();
+                    Canvas.background.context.arc(Canvas.pctX(33.33), Canvas.pctY(33.33), r, 0, 2*Math.PI);
+                    Canvas.background.context.stroke();
+                }
+                */
+                //end of canvas test
+            }
+            function StartUp()
+            {
+                Canvas();
+                //CanvasTest();
+                
+                var lightning = new Lightning();
+                var depth = 20;
+                var hue = Math.random() * 360;
+                var darkColour  = "hsla("+hue+", 100%, 50%,0.2)";
+                var midColour   = "hsla("+(hue-40)+", 100%, 75%,0.4)";
+                var lightColour = "hsla("+(hue-80)+", 100%, 100%,0.8)";
+                
+                lightning.Build(Canvas.pctX(50), Canvas.pctY(0), Canvas.pctY(10), Math.PI / 2, (Math.PI / 4) * 3, 2, depth);
+                
+                Canvas.background.context.fillStyle = "#000000";
+                
+                Canvas.foreground.context.lineCap="round";
+                
+                Canvas.background.context.fillRect(0,0,Canvas.pctX(100), Canvas.pctY(100));
+                Canvas.foreground.context.strokeStyle = darkColour;
+                Canvas.foreground.context.lineWidth = Canvas.pctX(1.0); 
+                lightning.Draw(0, depth, Canvas.foreground.context);
+                Canvas.foreground.context.strokeStyle = darkColour;
+                Canvas.foreground.context.lineWidth = Canvas.pctX(1.2); 
+                lightning.DrawTrunk(0, depth, Canvas.foreground.context);
+
+                Canvas.foreground.context.strokeStyle = midColour;
+                Canvas.foreground.context.lineWidth = Canvas.pctX(0.5); 
+                lightning.Draw(0, depth, Canvas.foreground.context);
+                Canvas.foreground.context.strokeStyle = midColour;
+                Canvas.foreground.context.lineWidth = Canvas.pctX(0.8); 
+                lightning.DrawTrunk(0, depth, Canvas.foreground.context);
+
+                Canvas.foreground.context.strokeStyle = lightColour;
+                Canvas.foreground.context.lineWidth = Canvas.pctX(0.1); 
+                lightning.Draw(0, depth, Canvas.foreground.context);
+                
+                Canvas.foreground.context.strokeStyle = lightColour;
+                Canvas.foreground.context.lineWidth = Canvas.pctX(0.4); 
+                lightning.DrawTrunk(0, depth, Canvas.foreground.context);
+            }
+        </script>
+        <style>
+            body
+            {
+                position : fixed;
+                top      : 0;
+                left     : 0;
+                width: 100%;
+                height: 100%;  
+                margin:0; 
+                padding:0;
+                border:2px;
+            }
+            .layer00     
+            {
+                position : fixed;
+                top      : 0;
+                left     : 0;
+                z-index  : 0;
+                width: 100%;
+                height: 100%;
+                                margin:0; 
+                padding:0;
+                border:2px;
+            }
+            .layer01     
+            {
+                position : fixed;
+                top      : 0;
+                left     : 0;
+                z-index  : 1;
+                width: 100%;
+                height: 100%;
+                                margin:0; 
+                padding:0;
+                border:2px;
+            }
+            .layer02     
+            {
+                position : fixed;
+                top      : 0;
+                left     : 0;
+                z-index  : 2;
+                width: 100%;
+                height: 100%;
+                margin:0; 
+                padding:0;
+                border:2px;
+            }
+        </style>
+    </head>
+    <body onload="StartUp();">
+        <div class="layer00">
+            <canvas id="background" width="400" height="400"></canvas>
+        </div>
+        <div class="layer01">
+            <canvas id="midground" width="400" height="400"></canvas>
+        </div>
+        <div class="layer02">
+            <canvas id="foreground" width="400" height="400"></canvas>
+        </div>
+    </body>
+</html>
