@@ -8,7 +8,7 @@ and open the template in the editor.
         <title></title>
         <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
         <script type="text/javascript">
-            //class         :Canvas()
+            //function      :Canvas()
             //description   :holds the pointers to the html elements
             //              :resizes canvas element to the size of the browser 
             //              :inner dimensions                      
@@ -56,6 +56,9 @@ and open the template in the editor.
                 };
             };
             
+            //function      :Line(x1, y1, x2, y2)
+            //parameters    :x1, y1, x2, y2 - coordinates of the line
+            //description   :holds the values to represent a line
             function Line(x1, y1, x2, y2)
             {
                 this.x1 = x1;
@@ -64,12 +67,85 @@ and open the template in the editor.
                 this.y2 = y2;
             }
             
+            //function      :Branch()
+            //description   :holds the information to describe a branch in a tree
+            function Branch()
+            {
+                this.x = 0;
+                this.y = 0;
+                this.angle = 0;
+                this.length = 0;
+                this.width = 0;
+                this.depth = 0;
+            }
+            
+            //function      :DrawBranch(branch, context)
+            //parameters    :branch - the trunk of the tree described as a branch
+            //              :context - the drawing context to draw the tree on
+            //description   :given a branch representation of a tree's trunk the
+            //              :function recursively draws each branch branching off 
+            //              :the branch going as deep as the Branch.depth is set
+            function DrawBranch(branch, context)
+            {
+                var endX = (Math.cos(branch.angle) * branch.length) + branch.x;
+                var endY = branch.y -(Math.sin(branch.angle) * branch.length);
+
+                context.beginPath();
+                context.moveTo(branch.x, branch.y);
+                context.lineTo(endX, endY);
+                context.lineWidth = branch.width;
+
+                context.stroke();
+
+                //control depth of recursion
+                if (branch.depth > 0.0)
+                {
+                    var newBranch = new Branch;
+
+                    newBranch.length = branch.length * 0.8;
+                    newBranch.width = branch.width * 0.6;
+                    newBranch.x = endX;
+                    newBranch.y = endY;
+                    newBranch.depth = branch.depth - 1;
+
+                    //decide on how many branches to make
+                    var numBranch = Math.random() * 6 + 1;
+
+                    //have a random chance of not branching
+                    if (Math.random() < 0.7)
+                    {
+                        numBranch = 1;
+                    }
+                    //ensure branching at start to prevent charlie brown trees
+                    if (branch.depth > 5)
+                    {
+                        numBranch = Math.random() * 4 + 1;
+                    }
+
+                    //create branches
+                    for (var i = 0; i < numBranch; i++)
+                    {
+                        var angleChange = (Math.random() * (Math.PI/2.0)) - (Math.PI / 4.0);
+                        newBranch.angle = branch.angle + angleChange;
+                        DrawBranch(newBranch, context);
+                    }
+                }
+            }
             
             //function      :Lightning()
             //description   :this function contains methods for creating and drawing
             //              :lightning
             function Lightning()
             {
+                //function      :Lightning.Build(x, y, size, sizeRatio, angle, spread, maxFork, depth, lines)
+                //parameters    :x, y, -- coordinate of the root starting position
+                //              :size, sizeRatio, -- the size of the root and the ratio of each generation
+                //              :angle, -- the angle in radians the lightning will travel
+                //              :spread, -- the angle in radians the lightning will spread
+                //              :maxFork, -- the maximum number of branches each section of the lightning could have
+                //              :depth, -- the maximum depth of recursion the lightning will go
+                //              :lines -- an array of lines the lightning will populate upon build
+                //the recursive function that draws lines
                 Lightning.Build = function(x, y, size, sizeRatio, angle, spread, maxFork, depth, lines)
                 {
                     if (typeof(lines) === 'undefined')
@@ -97,7 +173,7 @@ and open the template in the editor.
 
                     if (depth > 0)
                     {
-                        if (Math.random() > 0.7)
+                        if (Math.random() > 0.6)
                         {
                             for (var i = 0; i < numBranches; i++)
                             {
@@ -110,9 +186,18 @@ and open the template in the editor.
                         }
                     }
                 };
-                
+                                
                 this.Lines = new Array();
-
+                
+                //function      :this.Build(x, y, size, angle, spread, maxFork, depth)
+                //parameters    :x, y, -- coordinate of the root starting position
+                //              :size, sizeRatio, -- the size of the root and the ratio of each generation
+                //              :angle, -- the angle in radians the lightning will travel
+                //              :spread, -- the angle in radians the lightning will spread
+                //              :maxFork, -- the maximum number of branches each section of the lightning could have
+                //              :depth, -- the maximum depth of recursion the lightning will go
+                //description   :this function clears the this.Lines array before populating it
+                //              :with this.Build(...)
                 this.Build = function(x, y, size, angle, spread, maxFork, depth)
                 {
                     this.Lines = new Array();
@@ -120,6 +205,12 @@ and open the template in the editor.
                     Lightning.Build(x, y, size, Math.pow(8, 1/depth), angle, spread, maxFork, depth, this.Lines);
                 };
                 
+                //function      :this.Draw(minDepth, maxDepth, context)
+                //parameters    :minDepth, - minimum depth value
+                //              :maxDepth, - maximum depth value
+                //              :context - the drawing context
+                //description   :this function draws the entire lightning structure
+                //              :that is within the depth range
                 this.Draw = function(minDepth, maxDepth, context)
                 {
                     if (maxDepth <= this.Lines.length && 
@@ -139,6 +230,12 @@ and open the template in the editor.
                     }
                 };//this.Draw
                 
+                //function      :this.DrawTrunk(minDepth, maxDepth, context)
+                //parameters    :minDepth, - minimum depth value
+                //              :maxDepth, - maximum depth value
+                //              :context - the drawing context
+                //description   :this function draws the lightning trunk structure
+                //              :that is within the depth range              
                 this.DrawTrunk = function(minDepth, maxDepth, context)
                 {
                     if (maxDepth <= this.Lines.length && 
@@ -155,7 +252,14 @@ and open the template in the editor.
                         context.stroke();                      
                     }
                 };//this.DrawTrunk
-                
+
+                //function      :this.DrawColour(minDepth, maxDepth, context, hue)
+                //parameters    :minDepth, - minimum depth value
+                //              :maxDepth, - maximum depth value
+                //              :context - the drawing context
+                //              :hue - the hue of the lightning between 0-360
+                //description   :this function draws the entire lightning structure
+                //              :that is within the depth range in colour
                 this.DrawColour = function(minDepth, maxDepth, context, hue)
                 {    
                     var darkColour  = "hsla("+hue+", 100%, 50%,0.2)";
@@ -176,7 +280,14 @@ and open the template in the editor.
                     context.lineWidth = Canvas.pctX(0.1); 
                     this.Draw(minDepth, maxDepth, context);
                 };//this.DrawColour
-                
+
+                //function      :this.DrawTrunkColour(minDepth, maxDepth, context, hue)
+                //parameters    :minDepth, - minimum depth value
+                //              :maxDepth, - maximum depth value
+                //              :context - the drawing context
+                //              :hue - the hue of the lightning between 0-360
+                //description   :this function draws the lightning trunk structure
+                //              :that is within the depth range in colour
                 this.DrawTrunkColour = function(minDepth, maxDepth, context, hue)
                 {    
                     var darkColour  = "hsla("+hue+", 100%, 50%,0.2)";
@@ -198,6 +309,17 @@ and open the template in the editor.
                     this.DrawTrunk(minDepth, maxDepth, context);
                 };//this.TrunkColour
                 
+                //function      :this.GetFrame(frameNumber, hue, context, x, y, size, angle, spread, maxFork, depth)
+                //parameters    :frameNumber, 
+                //              :hue, 
+                //              :context, 
+                //              :x, y, -- coordinate of the root starting position
+                //              :size, sizeRatio, -- the size of the root and the ratio of each generation
+                //              :angle, -- the angle in radians the lightning will travel
+                //              :spread, -- the angle in radians the lightning will spread
+                //              :maxFork, -- the maximum number of branches each section of the lightning could have
+                //              :depth -- the maximum depth of the recursion
+                //description   :draws on the given context the frame of the animation
                 this.GetFrame = function(frameNumber, hue, context, x, y, size, angle, spread, maxFork, depth)
                 {
                     //frame -- action
@@ -208,13 +330,14 @@ and open the template in the editor.
                     //04    -- draw all lightning, drawTrunk bottom 1/2
                     //05    -- draw top 2/3 
                     //06    -- draw top 1/3 and drawTrunk all
-                    //07    -- empty frame
+                    //07    -- drawTrunk all
                     //08    -- drawTrunk all
-                    var numberOfFrames = 9;
 
                     switch (frameNumber)
                     {
                     case (0):
+                        Canvas.background.context.fillStyle="#000000";
+                        Canvas.background.context.fillRect(0,0,Canvas.pctX(100), Canvas.pctY(100));
                         this.Build(x, y, size, angle, spread, maxFork, depth);
                         break;
                     case (1):
@@ -231,19 +354,32 @@ and open the template in the editor.
                     case (4):
                         var halfOf = Math.floor(this.Lines.length / 2);
                         this.DrawColour(0, this.Lines.length, context, hue);
-                        this.DrawTrunkColour(halfOf, this.Lines.length, context, hue);
+                        this.DrawTrunkColour(0, halfOf, context, hue);
+                        
+                        Canvas.background.context.fillStyle="#aaaaaa";
+                        Canvas.background.context.fillRect(0,0,Canvas.pctX(100), Canvas.pctY(100));
+                        
                         break;
                     case (5):
                         var top2Thirds = Math.floor(this.Lines.length / 3);
                         this.DrawColour(top2Thirds, this.Lines.length, context, hue);
+                        
+                        Canvas.background.context.fillStyle="#000000";
+                        Canvas.background.context.fillRect(0,0,Canvas.pctX(100), Canvas.pctY(100));
                         break;
                     case (6):
                         var topThird = Math.floor((this.Lines.length / 3) * 2);
                         this.DrawColour(topThird, this.Lines.length, context, hue);
                         this.DrawTrunkColour(0, this.Lines.length, context, hue);
+                        
+                        Canvas.background.context.fillStyle="#dddddd";
+                        Canvas.background.context.fillRect(0,0,Canvas.pctX(100), Canvas.pctY(100));
                         break;
                     case (7):
-                        //empty frame
+                        
+                        Canvas.background.context.fillStyle="#000000";
+                        Canvas.background.context.fillRect(0,0,Canvas.pctX(100), Canvas.pctY(100));
+                        
                         this.DrawTrunkColour(0, this.Lines.length, context, hue);
                         break;
                     case (8):
@@ -251,7 +387,7 @@ and open the template in the editor.
                         break;
                     }
                 };
-
+                
             }
             
             //function      :CanvasTest()
@@ -290,31 +426,34 @@ and open the template in the editor.
                 */
                 //end of canvas test
             }
-  
 
-            
             var lightning = new Lightning();
-            function Animate()
+            function Animate(frameNumber)
             {
-                var numFrames = 30;
+                
+                var numFrames = 10;
                 var depth = 20;
                 var xPos = 0;
+                var timer;
                 
-                if (typeof(Animate.frameNumber) === 'undefined')
+                xPos = Math.random() * Canvas.pctX(100);
+                Canvas.midground.context.clearRect(0,0, Canvas.pctX(100), Canvas.pctY(100));
+                lightning.GetFrame(frameNumber % numFrames, Math.random() * 360,  Canvas.midground.context, xPos, Canvas.pctY(0), Canvas.pctY(10), (Math.random() * Math.PI), (Math.PI / 4) * 3, 2, depth);
+                if (frameNumber < numFrames)
                 {
-                    Animate.frameNumber = 0;
+                    timer = setTimeout("Animate("+(frameNumber + 1) +");", 33); 
                 }
                 else
                 {
-                    Animate.frameNumber ++;
+                    //wait up to n milliseconds for another flash
+                    var n = 2000;
+                    timer = setTimeout("Animate(0);", Math.random() * n);
                 }
                 
-                if (Animate.frameNumber % numFrames === 0)
+                Animate.stop = function()
                 {
-                    xPos = Math.random() * Canvas.pctX(100);
+                    clearTimeout(timer);
                 };
-                Canvas.midground.context.clearRect(0,0, Canvas.pctX(100), Canvas.pctY(100));
-                lightning.GetFrame(Animate.frameNumber % numFrames, 240,  Canvas.midground.context, xPos, Canvas.pctY(0), Canvas.pctY(10), Math.PI / 2, (Math.PI / 4) * 3, 2, depth);
             }
             
             function StartUp()
@@ -323,7 +462,23 @@ and open the template in the editor.
                 //CanvasTest();
                 Canvas.background.context.fillStyle = "#000000";
                 Canvas.background.context.fillRect(0,0,Canvas.pctX(100),Canvas.pctY(100));
-                setInterval("Animate();", 50);
+                
+                var branch = new Branch();
+                
+                //draw trees
+                for (var b = 0; b < 5; b++)
+                {
+                    branch.x = Canvas.pctX(Math.random() * 100.0);
+                    branch.y = Canvas.pctY(120.0);
+                    branch.angle = Math.PI / 2  + Math.random() - 0.5;
+                    branch.length = Canvas.pctY(5.0 + Math.random() * 15.0);
+                    branch.width = Canvas.pctY(1.0);
+                    branch.depth = 8;
+
+                    DrawBranch(branch, Canvas.foreground.context);
+                }
+                
+                setTimeout("Animate(0);", 0);
             }
         </script>
         <style>
