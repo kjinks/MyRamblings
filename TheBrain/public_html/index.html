@@ -1,0 +1,177 @@
+<!--
+Developer: Ken Jinks
+Date :March 30 2014
+Description: This is a test using a learning algorithm to play Go.
+The learning algorithm will be trial and error, where bulk variables 
+of the most fit systems will be used modified to build a new system that will 
+compete against the old. 
+The system that will learn is a weighted network with feed back. The network
+will be described as having k inputs, m outputs and n feedback channels.
+The weight map that will describe the topology and behaviour of the network
+will be in an array that is (k + n) by (m + n).
+
+      >|a|a|b|b|b|b|
+input >|a|a|b|b|b|b|
+      >|a|a|b|b|b|b|  k = 3, n = 2, m = 4
+   |==>|c|c|d|d|d|d|
+   ||=>|c|c|d|d|d|d|
+   |====V V | | | | 
+   =======| V V V V
+feedback    output
+
+The board of Go is 19x19 which is 361 tiles. Each tile can be one of three 
+states, player piece, opponent piece or empty. This means in order to describe
+the board this network will require 361 x 3 = 1083 inputs. The output only has 
+361 possibilities where the player can place a piece. The feedback size will
+be arbitrary and it too will evolve.  This creates a weight map of 390963 
+elements. 
+
+Feedback is not always nescessary and can
+cause the network to become unstable, the reward is that you gain a network 
+where past events can effect current behaviour.
+
+-->
+<!DOCTYPE html>
+<html>
+    <head>
+        <title></title>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+        <script type="text/javascript">
+            
+            //function      :sunStrWrap(index, length, str)
+            //parameters    :index - the index into the string
+            //              :length - the length to read
+            //              :str - the string to read
+            function subStrWrap(index, length, str)
+            {  
+                var returnStr = str.substr(index, length);
+
+                while (returnStr.length < length)
+                {
+                    returnStr += str.substr(0, length - returnStr.length);
+                };
+                
+                return returnStr;
+            };
+
+            
+            //alert(subStrWrap(2, 34, "KenJinks"));
+            
+            function Genes()
+            {                
+                Genes.genomeSize = 1000000;
+                
+                document.write('Hello'.charCodeAt(1));
+                //String.fromCharCode(17);
+                if(typeof(this.genome) === 'undefined')
+                {
+                    this.genome = "";
+                }
+                
+                this.Randomize = function()
+                {
+                    this.genome = "";
+                    for (var i = 0; i < Genes.genomeSize; i++)
+                    {
+                        //append random bytes to the genome
+                        this.genome += String.fromCharCode(Math.floor(Math.random()*256));
+                    }                 
+                };
+                
+                this.Clone = function(donor)
+                {
+                    this.genome = donor.genome;
+                };
+                
+                //function      :this.ChildOf(donor1, donor2)
+                //parameters    :donor1, donor2 - the parents that donate their
+                //              :genetic material
+                //description   :this function takes two donors and shuffles their
+                //              :genetic material with equal probability and changing
+                //              :this.genome. If one of the donors is shorter than the
+                //              :other the child's genome will be length of the larger
+                this.ChildOf = function(donor1, donor2)
+                {
+                    var length = donor1.genome.length > donor2.genome.length ? 
+                                 donor1.genome.length : donor2.genome.length;
+                    
+                    this.genome = "";
+                    for(var i = 0; i < length; i++)
+                    {
+                        //modulus added to wrap around and take from the beginning
+                        if (Math.random() > 0.5)
+                        {
+                            this.genome += donor1.genome.charAt(i % donor1.genome.length);
+                        }
+                        else
+                        {
+                            this.genome += donor2.genome.charAt(i % donor2.genome.length);
+                        }
+                    }
+                };
+                
+                //function      :this.Read(index, length, min, max)
+                //parameters    :index - the index of the chromosome being read
+                //              :length - the length of the chromosome
+                //              :min, max - the range of return value
+                //description   :this function reads from the genome a number
+                //              :of characters which will be treated as a base
+                //              :256 number. That number is then normalized
+                //              :to give a number within the prescribed range.
+                //returns       :a numeric number representing a portion of the genome
+                //              :this number is within the range of min and max
+                this.Read = function(index, length, min, max)
+                {
+
+                    var chromosome = subStrWrap(index, length, this.genome);
+                    var chromValue = 1; 
+                    var returnVal = 0.0;
+                    
+                    for (var i = 0; i < chromosome.length; i ++)
+                    {
+                        //the string contains a base 256 number
+                        chromValue += (chromosome.charCodeAt(i) * Math.pow(256, i));
+                    }
+                    
+                    //normalize the chrom value
+                    chromValue = chromValue / Math.pow(256, chromosome.length);
+                    
+                    //put the value into the given range
+                    returnVal = ((max - min) * chromValue) + min;
+                    
+                    //and we are done
+                    return returnVal;
+                };
+                
+                //function      :this.GetNext(min, max)
+                //parameters    :min, max -- the range of the return value
+                //description   :this function reads a chromosome and then steps 
+                //              :one chromosome down the genome
+                this.GetNext = function(min, max)
+                {
+                    var CHROM_WIDTH = 4;
+                    var returnVal = 0.0;
+                    
+                    if (typeof(this.readIndex) === 'undefined')
+                    {
+                        this.readIndex = 0;
+                    }
+                    else
+                    {
+                        this.readIndex++;
+                    }
+                    
+                    returnVal = this.Read(this.readIndex * CHROM_WIDTH, CHROM_WIDTH, min, max);
+                    
+                    return returnVal;
+                };
+            }
+            
+            var genes = new Genes();
+            genes.Randomize();
+        </script>
+    </head>
+    <body>
+        <div></div>
+    </body>
+</html>
