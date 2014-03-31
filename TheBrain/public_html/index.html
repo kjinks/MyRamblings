@@ -1,7 +1,7 @@
 <!--
 Developer: Ken Jinks
 Date :March 30 2014
-Description: This is a test using a learning algorithm to play Go.
+Description: This is a test using a learning algorithm to play Go or similar board game.
 The learning algorithm will be trial and error, where bulk variables 
 of the most fit systems will be used modified to build a new system that will 
 compete against the old. 
@@ -29,6 +29,7 @@ elements.
 Feedback is not always nescessary and can
 cause the network to become unstable, the reward is that you gain a network 
 where past events can effect current behaviour.
+
 
 -->
 <!DOCTYPE html>
@@ -61,12 +62,7 @@ where past events can effect current behaviour.
             {                
                 Genes.genomeSize = 1000000;
                 
-                document.write('Hello'.charCodeAt(1));
-                //String.fromCharCode(17);
-                if(typeof(this.genome) === 'undefined')
-                {
-                    this.genome = "";
-                }
+                this.genome = "";
                 
                 this.Randomize = function()
                 {
@@ -78,9 +74,23 @@ where past events can effect current behaviour.
                     }                 
                 };
                 
-                this.Clone = function(donor)
+                //function      :this.CloneFrom(donor)
+                //parameter     :donor - the genetic donor
+                //description   :copys all the attributes of one gene to another
+                this.CloneFrom = function(donor)
                 {
-                    this.genome = donor.genome;
+                    this.genome = donor.genome.slice(0);
+                    this.genomeSize = donor.genomeSize;
+                };
+                
+                //function      :this.Clone()
+                //description   :creates a clone of this Genes() object
+                //returns       :returns a clone of this Genes() object
+                this.Clone = function()
+                {
+                    var clone = new Genes();
+                    clone.CloneFrom(this);
+                    return clone;
                 };
                 
                 //function      :this.ChildOf(donor1, donor2)
@@ -92,6 +102,7 @@ where past events can effect current behaviour.
                 //              :other the child's genome will be length of the larger
                 this.ChildOf = function(donor1, donor2)
                 {
+                    //choose the larger of the lengths
                     var length = donor1.genome.length > donor2.genome.length ? 
                                  donor1.genome.length : donor2.genome.length;
                     
@@ -122,7 +133,6 @@ where past events can effect current behaviour.
                 //              :this number is within the range of min and max
                 this.Read = function(index, length, min, max)
                 {
-
                     var chromosome = subStrWrap(index, length, this.genome);
                     var chromValue = 1; 
                     var returnVal = 0.0;
@@ -152,6 +162,11 @@ where past events can effect current behaviour.
                     var CHROM_WIDTH = 4;
                     var returnVal = 0.0;
                     
+                    this.GetNext.Reset = function()
+                    {
+                        this.readIndex = 0;
+                    };
+                    
                     if (typeof(this.readIndex) === 'undefined')
                     {
                         this.readIndex = 0;
@@ -167,8 +182,184 @@ where past events can effect current behaviour.
                 };
             }
             
-            var genes = new Genes();
-            genes.Randomize();
+            //function      :TestGenes()
+            //description   :this tests the read functioning of the Gene class
+            //              :looking for any errors in the output must be done
+            //              :manually, asciiValue should be in the range 0-255
+            //              :and the geneValue should be between 0 and 0.99
+            function TestGenes()
+            {
+                var genes = new Genes();
+                
+                genes.Randomize();
+                
+                document.write("<table width='auto' border='1'>");
+                document.write("<tr><td> asciiValue </td><td> geneValue </td></tr>");
+                for (var i = 0; i < 20; i++)
+                {
+                    var asciiValue = genes.genome.charCodeAt(i);
+                    var geneValue = genes.Read(i, 5, 0, 1);
+                    document.write("<tr><td>"+asciiValue+"</td><td> "+ geneValue + "</td></tr>");
+                }
+                document.write("</table>");
+            }
+            
+            function WeightedMatrix(numIn, numFb, numOt)
+            {
+                //dimensions
+                this.NumIn = numIn;
+                this.NumFb = numFb;
+                this.NumOt = numOt;
+                
+                //arrays
+                this.WeightRows = new Array(numIn + numFb);
+                this.Incoming = new Array(numIn + numFb);
+                this.Outgoing = new Array(numOt + numFb);
+                
+                //initialize arrays
+                for (var i = 0; i < (numIn + numFb); i ++)
+                {
+                    this.WeightRows[i] = new Array(numOt + numFb);
+                    this.Incoming[i] = 0.0;
+                    
+                    for (var j = 0; j < (numOt + numFb); j++)
+                    {
+                        this.WeightRows[i][j] = 0.0;
+                        this.Outgoing[j] = 0.0;
+                    }
+                }
+                
+                //function          :this.AssignWeight(incoming, outgoing, value)
+                //parameters        :incoming, outgoing, - coordinates of the weight
+                //                  :value - the value of the weight
+                //description       :this function assigns a value to the specified value
+                //                  :if the incoming and outgoing values are within the
+                //                  :range of the weight array 
+                this.AssignWeight = function(incoming, outgoing, value)
+                {
+                    if (((incoming < (this.NumIn + this.NumFb)) && (incoming >= 0)) &&
+                        ((outgoing < (this.NumOt + this.NumFb)) && (outgoing >= 0)))
+                    {
+                        this.WeightRows[incoming][outgoing] = value;
+                    }
+                };
+                
+                //function          :this.ToString(toHTML)
+                //parameter         :toHTML - true if html string is requested
+                //description       :displays the current state of the network as an html string
+                //returns           :an html string representing the network
+                this.toString = function()
+                {
+                    var returnString = "";
+                    
+                    returnString += "<table>"
+
+                    for (var i = 0; i < (this.NumIn + this.NumFb); i ++)
+                    {
+                        //this.WeightRows[i] = new Array(this.NumOt + this.NumFb);
+                        //this.Incoming[i] = 0.0;
+                        if (i < this.NumIn)
+                        {
+                            returnString += "<tr><td style='background-color:blue; color:white'> " + this.Incoming[i] + "</td>";
+                        }
+                        else
+                        {
+                            returnString += "<tr><td style='background-color:green; color:white'> " + this.Incoming[i] + "</td>";
+                        }
+                        for (var j = 0; j < (this.NumOt + this.NumFb); j++)
+                        {
+                            returnString += "<td>" + this.WeightRows[i][j] + "</td>";
+                            //this.Outgoing[j] = 0.0;
+                        }
+                        returnString += "</tr>";
+                    }
+
+                    returnString += "<tr><td></td>"
+                    for (var j = 0; j < (this.NumOt + this.NumFb); j++)
+                    {
+                        if (j < this.NumFb)
+                        {
+                            returnString += "<td style='background-color:green; color:white'>" + this.Outgoing[j] + "</td>";
+                        }
+                        else
+                        {
+                            returnString += "<td style='background-color:blue; color:white'>" + this.Outgoing[j] + "</td>";
+                        }
+                    }
+                    returnString += "</tr></table>";
+
+                    return returnString;
+                }; 
+                
+                this.NewInput = function(inputArray)
+                {
+                    if (Array.isArray(inputArray) === true)
+                    {
+                        if (inputArray.length === this.NumIn)
+                        {   
+                            //populate the input
+                            for (var i = 0; i < this.NumIn; i ++)
+                            {
+                                this.Incoming[i] = inputArray[i];
+                            }
+                            //clear the feedback
+                            for (var i = this.NumIn; i < (this.NumIn + this.NumFb); i ++)
+                            {                       
+                                this.Incoming[i] = 0.0;
+
+                                for (var j = 0; j < this.NumFb; j++)
+                                {
+                                    this.Outgoing[j] = 0.0;
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                this.Step = function()
+                {
+                    //copy feedback out to feedback in                
+                    for (var i = 0; i < this.NumFb; i ++)
+                    {                       
+                        this.Incoming[i + this.NumIn] = this.Outgoing[i];
+                    }
+                    
+                    //calculate each column, if column >= 0 then output = 1
+                    for (var i = 0; i < (this.NumOt + this.NumFb); i++)
+                    {
+                        var columnTotal = 0;
+                        for (var j = 0; j < (this.NumIn + this.NumFb); j++)
+                        {
+                            columnTotal += this.Incoming[j] * this.WeightRows[j][i];
+                        }
+                        if (columnTotal > 0)
+                        {
+                            this.Outgoing[i] = 1;
+                        }
+                        else
+                        {
+                            this.Outgoing[i] = 0;
+                        }
+                    }
+                }
+            }
+            
+            //TestGenes();
+            
+            function TestWeightedMatrix()
+            {
+                var wtdMtx = new WeightedMatrix(5,4,7);
+                var inputTo = new Array(1,1,1,0,0);
+
+                wtdMtx.AssignWeight(0, 2, 1.1);
+
+                wtdMtx.NewInput(inputTo);
+                wtdMtx.Step();
+                wtdMtx.Step();
+                document.write(wtdMtx.toString());
+            }
+            
+            TestWeightedMatrix()
         </script>
     </head>
     <body>
