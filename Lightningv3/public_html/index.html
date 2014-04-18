@@ -1,7 +1,36 @@
 <!--
 Ken Jinks
 April 06 2014
+This file contains a examples of procedural image generation using HTML5 and 
+Javascript.
+There are no bitmaps, or vector resources being used everything is created on the 
+fly. A new scene will be generated with each refresh of the page.
 
+One external file is used, simplex.js which is a free implementation of simplex noise
+written by Jonas Wagner.
+
+Here is a decription of the three main techniques used here.
+
+One technique that is used here is simplex noise.
+Simplex noise generates spatial noise with a fixed spatial frequency that is 
+addressable in one of three dimensions. By mixing noise of different frequencies
+and playing a little math magic one can generate many different textures, this 
+is similar to fourier synthesis in sound. The clouds in the background are generated
+in this way.
+
+A second technique that is used here is fractals and recursion.
+By allowing a function to call itself a fractal object can be modeled in a function
+reflecting it's simplest form. A tree is just a branch branching off other branches,
+so if I model a branch and give it heuristics to branch copies of itself I can create
+a tree. This is also how the lightning is generated as well.
+
+The third technique is particles and vector fields.
+That rain, as you watch it, the wind blows it around, it has sheets of differing 
+densities falling and complex turbulent patterns arising. This sounds computationally
+expensive doesn't it? Simplex noise is at it again. As each particle travels from 
+the top to the bottom it's trajectory is pushed and pulled by an undulating vector 
+field described by simplex noise over time. It creates the complex behaviour without 
+the overhead.
 -->
 <!DOCTYPE html>
 <html>
@@ -30,6 +59,9 @@ April 06 2014
                 Canvas.foreground.context = Canvas.foreground.getContext("2d");
                 Canvas.sillouette.context = Canvas.sillouette.getContext("2d");
                 
+                //function      :Canvas.Resize
+                //description   :resizes all the canvas elements to fill the browser
+                //              :window
                 Canvas.Resize = function()
                 {
                     Canvas.width  = window.innerWidth;
@@ -47,6 +79,7 @@ April 06 2014
                     Canvas.sillouette.height = Canvas.height;
                 };
                 
+                //resize the elements when Canvas is called
                 Canvas.Resize();
                 
                 //function      :Canvas.pctX(xPct)
@@ -115,9 +148,7 @@ April 06 2014
             {
                 var endX = (Math.cos(branch.angle) * branch.length) + branch.x;
                 var endY = branch.y -(Math.sin(branch.angle) * branch.length);
-                
-                
-                
+
                 context.beginPath();
                 context.moveTo(branch.x, branch.y);
                 context.lineTo(endX, endY);
@@ -199,10 +230,8 @@ April 06 2014
                 context.moveTo(branch.x, branch.y);
                 context.lineTo(endX, endY);
                 context.lineWidth = branch.width;
-                
                 context.stroke();
-                
-                
+
                 if (branch.depth < 5 && (simplex.noise2D(1000, seed) + 1)/2 > -0.2)
                 {
                     //draw leafs
@@ -566,11 +595,19 @@ April 06 2014
                 
                 //end of canvas test
             }
-            
-            
+
             var lightning1 = new Lightning();
+            
+            //function      :Animate(frameNumber)
+            //parameters    :frameNumber - the current frame in the animation
+            //description   :this function controls the Animation of the lightning
+            //              :it uses setTimeout to call itself and waits a random
+            //              :period of time between each lightning strike
+            //              :Animate.stop() will stop the animation.
+            //              :The animation is done on the midground canvas.
             function Animate(frameNumber)
             {
+                var frameLength = 33;//milliseconds
                 var numFrames = 20;
                 var depth = 20;
                 var xPos = 0;
@@ -601,7 +638,7 @@ April 06 2014
                 if (frameNumber < numFrames)
                 {
                     var nextFrame = (frameNumber + 1);
-                    timer = setTimeout("Animate("+ nextFrame +");", 33); 
+                    timer = setTimeout("Animate("+ nextFrame +");", frameLength); 
                 }
                 else
                 {
@@ -629,10 +666,15 @@ April 06 2014
                 var simplex = new SimplexNoise();
                 var imageData = context.createImageData(context.canvas.width,context.canvas.height);
                 
+                //the for loops step by two to quarter the resolution
+                //thereby speeding up the rendering
                 for (var x = 0; x < imageData.width; x+=2)
                 {
                     for (var y = 0; y < imageData.height; y+=2)
                     {
+                        //because using a flat x and y cooridinate looks ugly
+                        //I distort the x and y plane using simplex noise, this
+                        //creates the effect of warbling glass
                         var curveY = y + simplex.noise3D(x / Canvas.pctY(500), y / Canvas.pctY(500), 350) * 
                                          Canvas.pctY(20) +
                                          simplex.noise3D(x / Canvas.pctY(100), y / Canvas.pctY(200), 350) * 
@@ -642,11 +684,17 @@ April 06 2014
                                          simplex.noise3D(x / Canvas.pctY(500), y / Canvas.pctY(200), 125) *
                                          Canvas.pctY(20);
                         
-                        var toDark = y / imageData.height;
-                        var toOpaque = 1 - toDark;
+                        
+                        var toDark = y / imageData.height; 
+                        var toOpaque = 1 - toDark; 
                         var cloudNoise = 0;
                         
-
+                        //a careful mix of simplex noise to make the clouds
+                        //the pattern is such, I divide the dimension by the 
+                        //period to get the mean distance between light and dark
+                        //to equal the period in pixels. So that I do not get the
+                        //same pattern overlapping I use a different seed value.
+                        //simplex.noise3D( x / xPeriod, y / yPeriod, seed)
                         cloudNoise = (simplex.noise3D(curveX  / Canvas.pctX(0.1) , curveY / Canvas.pctY(0.1), 600)  +
                                           simplex.noise3D(curveX  / Canvas.pctX(100) , curveY / Canvas.pctY(100), 600) * 5 + 
                                           simplex.noise3D(curveX  / Canvas.pctX(80) , curveY / Canvas.pctY(80), 500) * 2 +
@@ -654,7 +702,8 @@ April 06 2014
                                           simplex.noise3D(curveX  / Canvas.pctX(15) , curveY / Canvas.pctY(15), 300) +  
                                           simplex.noise3D(curveX  / Canvas.pctX(10) , curveY / Canvas.pctY(10), 200) +
                                           simplex.noise3D(curveX  / Canvas.pctX(5) , curveY / Canvas.pctY(5), 100));
-                                  
+                        
+                        //the mask is the transparent part of the clouds that is lit up from behind
                         var mask = simplex.noise3D(curveX  / Canvas.pctX(50) , curveY / Canvas.pctY(30), 1000) +
                                    simplex.noise3D(curveX  / Canvas.pctX(70) , curveY / Canvas.pctY(10), 900) +
                                    simplex.noise3D(curveX  / Canvas.pctX(30) , curveY / Canvas.pctY(10), 2100) +
@@ -670,7 +719,8 @@ April 06 2014
                         var b = (Math.floor(cloudNoise * 128) + 128) * toDark;
                         var a = (Math.floor(((cloudNoise - 0.5)* 2) * 32) + 224) * toOpaque;
                         
-                       
+                        //to speed up the cloud render it is done at a quarter 
+                        //of the resolution
                         setPixel(imageData, x, y, r, g, b, a * toOpaque);
                         setPixel(imageData, x + 1, y, r, g, b, a * toOpaque);
                         setPixel(imageData, x + 1, y + 1, r, g, b, a * toOpaque);
@@ -678,100 +728,6 @@ April 06 2014
                     }
                 }
                 context.putImageData(imageData, 0, 0);
-            }
-            
-            function Tree()
-            {
-                //define tree type enum
-                if (typeof(Tree.Types) === 'undefined')
-                {
-                    var index = 0;
-                    
-                    Tree.Types           = index++;
-                    Tree.Types.CONIFER   = index++;
-                    Tree.Types.DECIDUOUS = index++;
-                }
-                
-                //construct tree
-                this.type    = Tree.Types.CONIFER;
-                this.context = null;
-                
-                this.Leaf = function(x, y, size, angle, depth)
-                {
-                    if(this.context !== null)
-                    {
-                        
-                    }
-                };
-
-                this.Branch = function(x, y, size, angle, depth)
-                {
-                    if(this.context !== null)
-                    {
-                        
-                    }                    
-                };
-                
-                this.Trunk = function(x, y, size, angle, angleRange, depth)
-                {
-                    if(this.context !== null)
-                    {
-                        var angleOffset = (Math.random() * angleRange * 2);
-                        
-                        var endX = x + (Math.cos(angle) * size);
-                        var endY = y - (Math.sin(angle) * size);
-
-                        this.context.beginPath();
-                        this.context.moveTo(x, y);
-                        this.context.lineTo(endX, endY);
-                        this.context.lineWidth = size;
-                        this.context.stroke();
-
-                        //control depth of recursion
-                        if (branch.depth > 0.0)
-                        {
-                            
-                        }
-                    }
-                };
-                
-                this.Draw = function(context, x, y, size, type, seed)
-                {
-                    this.context = context;
-                    
-                    var angle = Math.PI / 2;
-                    var x = 0, y = 0, trunkSize = 0, trunkAngle = 0;
-                    var trunkAngleRange = 0; trunkSeed = 0, trunkDepth = 0;
-                    
-                    switch (this.type)
-                    {
-                        case(Tree.Types.CONIFER): 
-                            trunkDepth = 9;
-                            trunkSize = size;
-                            trunkSizeRatio = Math.pow(1/8, 1/trunkDepth);
-                            trunkAngle = (Math.PI / 2); //straight up 90 degrees
-                            trunkAngleRange = (Math.PI / 2) / 9; //+/- 10 degress
-                            trunkSeed = seed; 
-                            break;
-                        case(Tree.Types.DECIDUOUS):
-                            trunkSize = 0;
-                            trunkSizeRatio = Math.pow(1/8, 1/trunkDepth);
-                            trunkAngle = 0;
-                            trunkAngleRange = 0; 
-                            trunkSeed = seed; 
-                            trunkDepth = 0;
-                            break;
-                        default:
-                            trunkSize = 0;
-                            trunkSizeRatio = Math.pow(1/8, 1/trunkDepth);
-                            trunkAngle = 0;
-                            trunkAngleRange = 0; 
-                            trunkSeed = seed; 
-                            trunkDepth = 0;
-                    };
-                    
-                    this.Trunk(x, y, trunkSize, trunkAngle, trunkAngleRange, trunkSeed, trunkDepth);
-                };
             }
 
             //function          :PolarToRectangle(angle, length)
@@ -977,40 +933,71 @@ April 06 2014
             
             function StartUp()
             {
+               
+                var userAgent = navigator.userAgent.toLowerCase();
+                var mobile = false;
+                var mobileString = ["iphone", 
+                                    "ipad", 
+                                    "blackberry",
+                                    "android"];
                 Canvas();
                 
-                //start rain
-                setInterval("TimeStep();", 33);
-                
-                //turn the background black
-                var context = Canvas.background.context;
-                
-                context.fillStyle = "#000000";
-                context.beginPath();
-                context.rect(0,0,Canvas.width, Canvas.height);
-                context.fill();
-                
-                //CanvasTest();
-                Canvas.background.context.fillStyle = "#000000";
-                Canvas.background.context.fillRect(0,0,Canvas.pctX(100),Canvas.pctY(100));
-                
-                var branch = new Branch();
-                
-                //draw trees
-                for (var b = 0; b < 5; b++)
+                //check for mobile
+                for (var i = 0; i < mobileString.length; i++)
                 {
-                    branch.x = Canvas.pctX(Math.random() * 100.0);
-                    branch.y = Canvas.pctY(120.0);
-                    branch.angle = Math.PI / 2  + Math.random() - 0.5;
-                    branch.length = Canvas.pctY(5.0 + Math.random() * 15.0);
-                    branch.width = Canvas.pctY(2.0);
-                    branch.depth = 8;
-
-                    DrawBranch(branch, Canvas.sillouette.context);
+                    if (userAgent.search(mobileString[i]) === true)
+                    {
+                        mobile = true;
+                    }
                 }
                 
-                Clouds(Canvas.backgroundMask.context);
-                setTimeout("Animate(0);", 0);
+                if (Canvas.width > 500 && mobile === false)
+                {
+                    //start rain
+                    setInterval("TimeStep();", 33);
+
+                    //turn the background black
+                    var context = Canvas.background.context;
+
+                    context.fillStyle = "#000000";
+                    context.beginPath();
+                    context.rect(0,0,Canvas.width, Canvas.height);
+                    context.fill();
+
+                    //CanvasTest();
+                    Canvas.background.context.fillStyle = "#000000";
+                    Canvas.background.context.fillRect(0,0,Canvas.pctX(100),Canvas.pctY(100));
+
+                    var branch = new Branch();
+
+                    //draw trees
+                    for (var b = 0; b < 5; b++)
+                    {
+                        branch.x = Canvas.pctX(Math.random() * 100.0);
+                        branch.y = Canvas.pctY(120.0);
+                        branch.angle = Math.PI / 2  + Math.random() - 0.5;
+                        branch.length = Canvas.pctY(5.0 + Math.random() * 15.0);
+                        branch.width = Canvas.pctY(2.0);
+                        branch.depth = 8;
+
+                        DrawBranch(branch, Canvas.sillouette.context);
+                    }
+
+                    Clouds(Canvas.backgroundMask.context);
+                    setTimeout("Animate(0);", 0);
+                }
+                else
+                {
+                    Clouds(Canvas.backgroundMask.context);
+                    Canvas.background.context.fillStyle = "#000000";
+                    Canvas.background.context.fillRect(0,0,Canvas.pctX(100),Canvas.pctY(100));
+                    
+                    Canvas.foreground.context.textAlign = "center";
+                    Canvas.foreground.context.font = "15px Arial";
+                    Canvas.foreground.context.strokeStyle = "#ffffff";
+                    Canvas.foreground.context.fillStyle = "#ffffff";
+                    Canvas.foreground.context.fillText("Sorry, mobile support not implemented", Canvas.pctX(50), Canvas.pctY(50));
+                }
             };//StartUp()
             
             //function          :TimeStep()
@@ -1067,9 +1054,7 @@ April 06 2014
                 }
                 
                 var now = new Date().getTime();
-                
-                
-                                
+            
                 Canvas.foreground.context.clearRect(0,0,Canvas.width, Canvas.height);
                 
                 for (var i = 0; i < numParticles; i ++)
@@ -1091,9 +1076,7 @@ April 06 2014
                         //edgeX >= (Canvas.width * -2) from ^^up there in the if
                         TimeStep.particle[i].position.x = Math.random() * Canvas.width * 2;
                         TimeStep.particle[i].position.y = Math.random() * Canvas.height;
-                        
-                        
-                        
+
                         //reset velocity
                         TimeStep.particle[i].velocity.value = 1000;
                     }
