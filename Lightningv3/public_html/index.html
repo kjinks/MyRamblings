@@ -945,7 +945,7 @@ the overhead.
                 //check for mobile
                 for (var i = 0; i < mobileString.length; i++)
                 {
-                    if (userAgent.search(mobileString[i]) === true)
+                    if (userAgent.search(mobileString[i]) !== -1)
                     {
                         mobile = true;
                     }
