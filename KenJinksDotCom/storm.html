@@ -1,0 +1,1181 @@
+<!--
+Ken Jinks
+April 06 2014
+This file contains a examples of procedural image generation using HTML5 and 
+Javascript.
+There are no bitmaps, or vector resources being used everything is created on the 
+fly. A new scene will be generated with each refresh of the page.
+
+One external file is used, simplex.js which is a free implementation of simplex noise
+written by Jonas Wagner.
+
+Here is a decription of the three main techniques used here.
+
+One technique that is used here is simplex noise.
+Simplex noise generates spatial noise with a fixed spatial frequency that is 
+addressable in one of three dimensions. By mixing noise of different frequencies
+and playing a little math magic one can generate many different textures, this 
+is similar to fourier synthesis in sound. The clouds in the background are generated
+in this way.
+
+A second technique that is used here is fractals and recursion.
+By allowing a function to call itself a fractal object can be modeled in a function
+reflecting it's simplest form. A tree is just a branch branching off other branches,
+so if I model a branch and give it heuristics to branch copies of itself I can create
+a tree. This is also how the lightning is generated as well.
+
+The third technique is particles and vector fields.
+That rain, as you watch it, the wind blows it around, it has sheets of differing 
+densities falling and complex turbulent patterns arising. This sounds computationally
+expensive doesn't it? Simplex noise is at it again. As each particle travels from 
+the top to the bottom it's trajectory is pushed and pulled by an undulating vector 
+field described by simplex noise over time. It creates the complex behaviour without 
+the overhead.
+-->
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Storm</title>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+        <script type="text/javascript" src="simplex.js"></script>
+        <script>
+            var simplex = new SimplexNoise();
+            
+            //function      :Canvas()
+            //description   :holds the pointers to the html elements
+            //              :resizes canvas element to the size of the browser 
+            //              :inner dimensions                      
+            function Canvas()
+            {
+                Canvas.background = document.getElementById("background");
+                Canvas.backgroundMask = document.getElementById("backgroundMask");
+                Canvas.midground  = document.getElementById("midground");
+                Canvas.foreground = document.getElementById("foreground");
+                Canvas.sillouette = document.getElementById("sillouette");
+                
+                Canvas.background.context = Canvas.background.getContext("2d");
+                Canvas.backgroundMask.context = Canvas.backgroundMask.getContext("2d");
+                Canvas.midground.context  = Canvas.midground.getContext("2d");
+                Canvas.foreground.context = Canvas.foreground.getContext("2d");
+                Canvas.sillouette.context = Canvas.sillouette.getContext("2d");
+                
+                //function      :Canvas.Resize
+                //description   :resizes all the canvas elements to fill the browser
+                //              :window
+                Canvas.Resize = function()
+                {
+                    Canvas.width  = window.innerWidth;
+                    Canvas.height = window.innerHeight;
+                    
+                    Canvas.background.width = Canvas.width;
+                    Canvas.background.height = Canvas.height;
+                    Canvas.backgroundMask.width = Canvas.width;
+                    Canvas.backgroundMask.height = Canvas.height;                    
+                    Canvas.midground.width = Canvas.width;
+                    Canvas.midground.height = Canvas.height;
+                    Canvas.foreground.width = Canvas.width;
+                    Canvas.foreground.height = Canvas.height;
+                    Canvas.sillouette.width = Canvas.width;
+                    Canvas.sillouette.height = Canvas.height;
+                };
+                
+                //resize the elements when Canvas is called
+                Canvas.Resize();
+                
+                //function      :Canvas.pctX(xPct)
+                //parameter     :xPct the percent of the width
+                //description   :converts percent to pixel
+                //returns       :xPct expressed in pixels
+                Canvas.pctX = function(xPct)
+                {
+                    return (xPct/100) * Canvas.width;
+                };
+                
+                //function      :Canvas.pctY(yPct)
+                //parameter     :yPct the percent of the height
+                //description   :converts percent to pixel
+                //returns       :yPct expressed in pixels               
+                Canvas.pctY = function(yPct)
+                {
+                    return (yPct/100) * Canvas.height;
+                };
+            };//Canvas()
+            //function      :setPixel(imageData, x, y, r, g, b, a)
+            //parameters    :imageData - an object containing the image data
+            //              :x, y, - the coordinate of the pixel
+            //              :r, g, b, a - the colour of the pixel
+            //description   :sets a single pixel to a colour in the image data object
+            function setPixel(imageData, x, y, r, g, b, a) 
+            {
+
+                var index = (x + y * imageData.width) * 4;
+                imageData.data[index+0] = r;
+                imageData.data[index+1] = g;
+                imageData.data[index+2] = b;
+                imageData.data[index+3] = a;
+            }
+            
+            //function      :Line(x1, y1, x2, y2)
+            //parameters    :x1, y1, x2, y2 - coordinates of the line
+            //description   :holds the values to represent a line
+            function Line(x1, y1, x2, y2)
+            {
+                this.x1 = x1;
+                this.y1 = y1;
+                this.x2 = x2;
+                this.y2 = y2;
+            }
+            
+            //function      :Branch()
+            //description   :holds the information to describe a branch in a tree
+            function Branch()
+            {
+                this.x = 0;
+                this.y = 0;
+                this.angle = 0;
+                this.length = 0;
+                this.width = 0;
+                this.depth = 0;
+            }
+            
+            //function      :DrawBranch(branch, context)
+            //parameters    :branch - the trunk of the tree described as a branch
+            //              :context - the drawing context to draw the tree on
+            //description   :given a branch representation of a tree's trunk the
+            //              :function recursively draws each branch branching off 
+            //              :the branch going as deep as the Branch.depth is set
+            function DrawBranch(branch, context)
+            {
+                var endX = (Math.cos(branch.angle) * branch.length) + branch.x;
+                var endY = branch.y -(Math.sin(branch.angle) * branch.length);
+
+                context.beginPath();
+                context.moveTo(branch.x, branch.y);
+                context.lineTo(endX, endY);
+                context.lineWidth = branch.width;
+                
+                context.stroke();
+                
+                if (branch.depth < 5 && Math.random() > 0.2)
+                {
+                    //draw leafs
+                    var numLeafs = Math.random() * 3;
+                    
+                    for (var l = 0; l < numLeafs; l++)
+                    {
+                        var leafPosX = (Math.random() * (branch.x - endX)) + endX;
+                        var leafPosY = (Math.random() * (branch.y - endY)) + endY;
+                        var leafSize = Math.random() * Canvas.pctX(1);
+                        context.beginPath();
+                        context.moveTo(leafPosX, leafPosY);
+                        context.lineTo(leafPosX + Math.random() * leafSize, leafPosY + Math.random() * leafSize);
+                        context.lineTo(leafPosX + Math.random() * leafSize, leafPosY + Math.random() * leafSize);
+                        context.lineTo(leafPosX + Math.random() * leafSize, leafPosY + Math.random() * leafSize);
+                        context.lineTo(leafPosX + Math.random() * leafSize, leafPosY + Math.random() * leafSize);
+                        context.lineTo(leafPosX + Math.random() * leafSize, leafPosY + Math.random() * leafSize);
+                        context.closePath();
+                        context.fill();
+                        
+                    }
+                }
+                
+                //control depth of recursion
+                if (branch.depth > 0.0)
+                {
+                    var newBranch = new Branch;
+
+                    newBranch.length = branch.length * 0.8;
+                    newBranch.width = branch.width * 0.5;
+                    newBranch.x = endX;
+                    newBranch.y = endY;
+                    newBranch.depth = branch.depth - 1;
+
+                    //decide on how many branches to make
+                    var numBranch = Math.random() * 6 + 1;
+
+                    //have a random chance of not branching
+                    if (Math.random() < 0.7)
+                    {
+                        numBranch = 1;
+                    }
+                    //ensure branching at start to prevent charlie brown trees
+                    if (branch.depth > 5)
+                    {
+                        numBranch = Math.random() * 4 + 1;
+                    }
+
+                    //create branches
+                    for (var i = 0; i < numBranch; i++)
+                    {
+                        var angleChange = (Math.random() * (Math.PI/2.0)) - (Math.PI / 4.0);
+                        newBranch.angle = branch.angle + angleChange;
+                        DrawBranch(newBranch, context);
+                    }
+                }
+            }
+  
+            //function      DrawBranchFromSeed(branch, context, seed)
+            //parameters    :branch - the trunk of the tree described as a branch
+            //              :context - the drawing context to draw the tree on
+            //              :seed - the seed number to base all pseudorandom
+            //description   :given a branch representation of a tree's trunk the
+            //              :function recursively draws each branch branching off 
+            //              :the branch going as deep as the Branch.depth is set
+            function DrawBranchFromSeed(branch, context, seed)
+            {
+                var endX = (Math.cos(branch.angle) * branch.length) + branch.x;
+                var endY = branch.y -(Math.sin(branch.angle) * branch.length);
+
+                context.beginPath();
+                context.moveTo(branch.x, branch.y);
+                context.lineTo(endX, endY);
+                context.lineWidth = branch.width;
+                context.stroke();
+
+                if (branch.depth < 5 && (simplex.noise2D(1000, seed) + 1)/2 > -0.2)
+                {
+                    //draw leafs
+                    var numLeafs = (simplex.noise2D(1005, seed) + 1)/2 * 3;
+                    
+                    for (var l = 0; l < numLeafs; l++)
+                    {
+                        var leafPosX = ((simplex.noise2D(1010, seed) + 1)/2 * (branch.x - endX)) + endX;
+                        var leafPosY = ((simplex.noise2D(1015, seed) + 1)/2 * (branch.y - endY)) + endY;
+                        var leafSize = (simplex.noise2D(1020, seed) + 1)/2 * Canvas.pctX(1);
+                        context.beginPath();
+                        context.moveTo(leafPosX, leafPosY);
+                        context.lineTo(leafPosX + (simplex.noise2D(1025, seed) + 1)/2 * leafSize, leafPosY + (simplex.noise2D(1050, seed) + 1)/2 * leafSize);
+                        context.lineTo(leafPosX + (simplex.noise2D(1030, seed) + 1)/2 * leafSize, leafPosY + (simplex.noise2D(1055, seed) + 1)/2 * leafSize);
+                        context.lineTo(leafPosX + (simplex.noise2D(1035, seed) + 1)/2 * leafSize, leafPosY + (simplex.noise2D(1060, seed) + 1)/2 * leafSize);
+                        context.lineTo(leafPosX + (simplex.noise2D(1040, seed) + 1)/2 * leafSize, leafPosY + (simplex.noise2D(1065, seed) + 1)/2 * leafSize);
+                        context.lineTo(leafPosX + (simplex.noise2D(1045, seed) + 1)/2 * leafSize, leafPosY + (simplex.noise2D(1070, seed) + 1)/2 * leafSize);
+                        context.closePath();
+                        context.fill();
+                        
+                    }
+                }
+                
+                //control depth of recursion
+                if (branch.depth > 0.0)
+                {
+                    var newBranch = new Branch;
+
+                    newBranch.length = branch.length * 0.8;
+                    newBranch.width = branch.width * 0.5;
+                    newBranch.x = endX;
+                    newBranch.y = endY;
+                    newBranch.depth = branch.depth - 1;
+
+                    //decide on how many branches to make
+                    var numBranch = (simplex.noise2D(1075, seed) + 1)/2 * 6 + 1;
+
+                    //have a random chance of not branching
+                    if ((simplex.noise2D(1080, seed) + 1)/2 < 0.7)
+                    {
+                        numBranch = 1;
+                    }
+                    //ensure branching at start to prevent charlie brown trees
+                    if (branch.depth > 5)
+                    {
+                        numBranch = (simplex.noise2D(1085, seed) + 1)/2 * 4 + 1;
+                    }
+
+                    //create branches
+                    for (var i = 0; i < numBranch; i++)
+                    {
+                        var angleChange = ((simplex.noise2D(1090, seed) + 1)/2 * (Math.PI/2.0)) - (Math.PI / 4.0);
+                        newBranch.angle = branch.angle + angleChange;
+                        DrawBranchFromSeed(newBranch, context, seed);
+                    }
+                }
+            }
+            
+            //function      :Lightning()
+            //description   :this function contains methods for creating and drawing
+            //              :lightning
+            function Lightning()
+            {
+                //function      :Lightning.Build(x, y, size, sizeRatio, angle, spread, maxFork, depth, lines)
+                //parameters    :x, y, -- coordinate of the root starting position
+                //              :size, sizeRatio, -- the size of the root and the ratio of each generation
+                //              :angle, -- the angle in radians the lightning will travel
+                //              :spread, -- the angle in radians the lightning will spread
+                //              :maxFork, -- the maximum number of branches each section of the lightning could have
+                //              :depth, -- the maximum depth of recursion the lightning will go
+                //              :lines -- an array of lines the lightning will populate upon build
+                //the recursive function that draws lines
+                Lightning.Build = function(x, y, size, sizeRatio, angle, spread, maxFork, depth, lines)
+                {
+                    if (typeof(lines) === 'undefined')
+                    {
+                        lines = new Array();
+                    }
+                    //the new angle is chosen at random that is +/- 1/2 spread of the
+                    //current angle                  
+                    var newAngle = angle + (Math.random() * spread) - (spread / 2.0);
+                    var newX = x + (Math.cos(newAngle) * size);
+                    var newY = y + (Math.sin(newAngle) * size);
+                    var numBranches = Math.floor(Math.random() * maxFork) + 1;
+
+                    var line = new Line(x, y, newX, newY);
+
+                    //create a hash table where the hash key is the
+                    //depth value, this will be used when drawing 
+                    //the lighting for animation
+                    if (typeof(lines[depth]) === 'undefined')
+                    {
+                        lines[depth] = new Array();
+                    }
+
+                    lines[depth].push(line);
+
+                    if (depth > 0)
+                    {
+                        if (Math.random() > 0.6)
+                        {
+                            for (var i = 0; i < numBranches; i++)
+                            {
+                                Lightning.Build(newX, newY, size / sizeRatio, sizeRatio, angle, spread, maxFork, depth - 1, lines);
+                            }
+                        }
+                        else
+                        {
+                            Lightning.Build(newX, newY, size / sizeRatio, sizeRatio, angle, spread, maxFork, depth - 1, lines);
+                        }
+                    }
+                };
+                
+                //this.Lines - contains the lines used to draw the lightning
+                this.Lines = new Array();
+                
+                //function      :this.Build(x, y, size, angle, spread, maxFork, depth)
+                //parameters    :x, y, -- coordinate of the root starting position
+                //              :size, sizeRatio, -- the size of the root and the ratio of each generation
+                //              :angle, -- the angle in radians the lightning will travel
+                //              :spread, -- the angle in radians the lightning will spread
+                //              :maxFork, -- the maximum number of branches each section of the lightning could have
+                //              :depth, -- the maximum depth of recursion the lightning will go
+                //description   :this function clears the this.Lines array before populating it
+                //              :with this.Build(...)
+                this.Build = function(x, y, size, angle, spread, maxFork, depth)
+                {
+                    this.Lines = new Array();
+                    
+                    //Math.pow(8, 1/depth) - gives a geometric progression which
+                    //is used to reduce the final line to be 1/8th of size
+                    Lightning.Build(x, y, size, Math.pow(8, 1/depth), angle, spread, maxFork, depth, this.Lines);
+                };
+                
+                //function      :this.Draw(minDepth, maxDepth, context)
+                //parameters    :minDepth, - minimum depth value
+                //              :maxDepth, - maximum depth value
+                //              :context - the drawing context
+                //description   :this function draws the entire lightning structure
+                //              :that is within the depth range
+                this.Draw = function(minDepth, maxDepth, context)
+                {
+                    if (maxDepth <= this.Lines.length && 
+                        maxDepth >= minDepth && 
+                        minDepth >= 0)
+                    {
+                        for (var i = minDepth; i < maxDepth; i++)
+                        {
+                            context.beginPath();
+                            for (var j = 0; j < (this.Lines[i]).length; j++)
+                            {                             
+                                context.moveTo(this.Lines[i][j].x1, this.Lines[i][j].y1);
+                                context.lineTo(this.Lines[i][j].x2, this.Lines[i][j].y2); 
+                            }
+                            context.stroke();
+                        }
+                    }
+                };//this.Draw
+                
+                //function      :this.DrawTrunk(minDepth, maxDepth, context)
+                //parameters    :minDepth, - minimum depth value
+                //              :maxDepth, - maximum depth value
+                //              :context - the drawing context
+                //description   :this function draws the lightning trunk structure
+                //              :that is within the depth range              
+                this.DrawTrunk = function(minDepth, maxDepth, context)
+                {
+                    if (maxDepth <= this.Lines.length && 
+                        maxDepth >= minDepth && 
+                        minDepth >= 0)
+                    {
+                        context.beginPath();
+                        context.moveTo(this.Lines[minDepth][0].x1, this.Lines[minDepth][0].y1);
+                        //context.lineTo(this.Lines[0][0].x1, this.Lines[0][0].y1);
+                        for (var i = minDepth; i < maxDepth; i++)
+                        {
+                                context.lineTo(this.Lines[i][0].x1, this.Lines[i][0].y1);
+                        }
+                        context.stroke();                      
+                    }
+                };//this.DrawTrunk
+
+                //function      :this.DrawColour(minDepth, maxDepth, context, hue)
+                //parameters    :minDepth, - minimum depth value
+                //              :maxDepth, - maximum depth value
+                //              :context - the drawing context
+                //              :hue - the hue of the lightning between 0-360
+                //description   :this function draws the entire lightning structure
+                //              :that is within the depth range in colour
+                this.DrawColour = function(minDepth, maxDepth, context, hue)
+                {    
+                    var darkColour  = "hsla("+hue+", 100%, 50%,0.1)";
+                    var midColour   = "hsla("+(hue-40)+", 100%, 75%,0.5)";
+                    var lightColour = "hsla("+(hue-80)+", 100%, 100%,0.8)";
+                    
+                    context.lineCap="round";
+
+                    context.strokeStyle = darkColour;
+                    context.lineWidth = Canvas.pctX(0.2); 
+                    this.Draw(minDepth, maxDepth, context);
+
+                    context.strokeStyle = midColour;
+                    context.lineWidth = Canvas.pctX(0.1); 
+                    this.Draw(minDepth, maxDepth, context);
+
+                    context.strokeStyle = lightColour;
+                    context.lineWidth = Canvas.pctX(0.05); 
+                    this.Draw(minDepth, maxDepth, context);
+                };//this.DrawColour
+
+                //function      :this.DrawTrunkColour(minDepth, maxDepth, context, hue)
+                //parameters    :minDepth, - minimum depth value
+                //              :maxDepth, - maximum depth value
+                //              :context - the drawing context
+                //              :hue - the hue of the lightning between 0-360
+                //description   :this function draws the lightning trunk structure
+                //              :that is within the depth range in colour
+                this.DrawTrunkColour = function(minDepth, maxDepth, context, hue)
+                {    
+                    var darkColour  = "hsla("+hue+", 100%, 50%,0.1)";
+                    var midColour   = "hsla("+(hue-40)+", 100%, 75%,0.5)";
+                    var lightColour = "hsla("+(hue-80)+", 100%, 100%,0.8)";
+                    
+                    context.lineCap="round";
+                
+                    context.strokeStyle = darkColour;
+                    context.lineWidth = Canvas.pctX(0.6); 
+                    this.DrawTrunk(minDepth, maxDepth, context);
+
+                    context.strokeStyle = midColour;
+                    context.lineWidth = Canvas.pctX(0.4); 
+                    this.DrawTrunk(minDepth, maxDepth, context);
+
+                    context.strokeStyle = lightColour;
+                    context.lineWidth = Canvas.pctX(0.2); 
+                    this.DrawTrunk(minDepth, maxDepth, context);
+                };//this.DrawTrunkColour
+                
+                //function      :this.GetFrame(frameNumber, hue, context, x, y, size, angle, spread, maxFork, depth)
+                //parameters    :frameNumber, -- the current fram in the animation
+                //              :hue, -- colour of the lightning
+                //              :context, - the drawing context
+                //              :x, y, -- coordinate of the root starting position
+                //              :size, sizeRatio, -- the size of the root and the ratio of each generation
+                //              :angle, -- the angle in radians the lightning will travel
+                //              :spread, -- the angle in radians the lightning will spread
+                //              :maxFork, -- the maximum number of branches each section of the lightning could have
+                //              :depth -- the maximum depth of the recursion
+                //description   :draws on the given context the frame of the animation
+                this.GetFrame = function(frameNumber, hue, context, x, y, size, angle, spread, maxFork, depth)
+                {
+                    //frame -- action
+                    //00    -- build lightning
+                    //01    -- draw top 1/3 lightning
+                    //02    -- draw top 2/3 lightning
+                    //03    -- draw all lightning
+                    //04    -- draw all lightning, drawTrunk bottom 1/2
+                    //05    -- draw top 2/3 
+                    //06    -- draw top 1/3 and drawTrunk all
+                    //07    -- drawTrunk all
+                    //08    -- drawTrunk all
+                    var flashInnerRad = Canvas.pctY(10);
+                    var flashOuterRad = Canvas.pctX(80);
+                    var flash = Canvas.background.context.createRadialGradient(x, y, flashInnerRad, x, y, flashOuterRad);
+                    
+                    flash.addColorStop( 0, '#ddeeff');
+                    flash.addColorStop( 0.5, '#8888aa');
+                    flash.addColorStop( 1, '#221111');
+                    
+                    switch (frameNumber)
+                    {
+                    case (0):
+                        Canvas.background.context.fillStyle="#080808";
+                        Canvas.background.context.fillRect(0,0,Canvas.pctX(100), Canvas.pctY(100));
+                        this.Build(x, y, size, angle, spread, maxFork, depth);
+                        break;
+                    case (1):
+                        var topThird = Math.floor((this.Lines.length / 3) * 2);
+                        this.DrawColour(topThird, this.Lines.length, context, hue);
+                        break;
+                    case (2):
+                        var top2Thirds = Math.floor(this.Lines.length / 3);
+                        this.DrawColour(top2Thirds, this.Lines.length, context, hue);
+                        break;
+                    case (3):
+                        this.DrawColour(0, this.Lines.length, context, hue);
+                        break;
+                    case (4):
+                        var halfOf = Math.floor(this.Lines.length / 2);
+                        this.DrawColour(0, this.Lines.length, context, hue);
+                        this.DrawTrunkColour(0, halfOf, context, hue);
+                        
+                        Canvas.background.context.fillStyle=flash;
+                        Canvas.background.context.fillRect(0,0,Canvas.pctX(100), Canvas.pctY(100));
+                        
+                        break;
+                    case (5):
+                        var top2Thirds = Math.floor(this.Lines.length / 3);
+                        this.DrawColour(top2Thirds, this.Lines.length, context, hue);
+                        
+                        Canvas.background.context.fillStyle="#000000";
+                        Canvas.background.context.fillRect(0,0,Canvas.pctX(100), Canvas.pctY(100));
+                        break;
+                    case (6):
+                        var topThird = Math.floor((this.Lines.length / 3) * 2);
+                        this.DrawColour(topThird, this.Lines.length, context, hue);
+                        this.DrawTrunkColour(0, this.Lines.length, context, hue);
+                        
+                        Canvas.background.context.fillStyle=flash;
+                        Canvas.background.context.fillRect(0,0,Canvas.pctX(100), Canvas.pctY(100));
+                        break;
+                    case (7):
+                        
+                        Canvas.background.context.fillStyle="#080808";
+                        Canvas.background.context.fillRect(0,0,Canvas.pctX(100), Canvas.pctY(100));
+                        
+                        this.DrawTrunkColour(0, this.Lines.length, context, hue);
+                        break;
+                    case (8):
+                        this.DrawTrunkColour(0, this.Lines.length, context, hue);
+                        break;
+                    default:
+                        //do nothing
+                    }
+                };         
+            }
+            
+            //function      :CanvasTest()
+            //description   :draws a number of shapes on the three canvas layers
+            //              :will demonstrate that drawing overlaps by layer
+            function CanvasTest()
+            {
+                //Canvas test
+                
+                Canvas.background.context.fillStyle = "hsla(50,100%,50%,0.8)";
+                Canvas.background.context.fillRect(Canvas.pctX(0),Canvas.pctY(0),Canvas.pctX(33.33),Canvas.pctY(33.33));
+                Canvas.midground.context.fillStyle = "hsla(170,100%,50%,0.8)";
+                Canvas.midground.context.fillRect(Canvas.pctX(33.33),Canvas.pctY(33.33),Canvas.pctX(33.33),Canvas.pctY(33.33));
+                Canvas.foreground.context.fillStyle = "hsla(290,100%,50%,0.8)";
+                Canvas.foreground.context.fillRect(Canvas.pctX(66.67),Canvas.pctY(66.67),Canvas.pctX(33.33),Canvas.pctY(33.33));
+  
+                Canvas.foreground.context.strokeStyle = "rgba(0,255,0,1.0)";
+                Canvas.foreground.context.lineWidth = 2;  
+                Canvas.midground.context.strokeStyle = "rgba(255,0,0,1.0)";
+                Canvas.midground.context.lineWidth = 5;               
+                Canvas.background.context.strokeStyle = "rgba(0,0,255,1.0)";
+                Canvas.background.context.lineWidth = 5;
+                
+                for (var r = 0; r < Canvas.pctX(33.33); r += 10)
+                {
+                    Canvas.foreground.context.beginPath();
+                    Canvas.foreground.context.arc(Canvas.pctX(50), Canvas.pctY(50), r * 2, 0, 2*Math.PI);
+                    Canvas.foreground.context.stroke();
+                    Canvas.midground.context.beginPath();
+                    Canvas.midground.context.arc(Canvas.pctX(66.67), Canvas.pctY(66.67), r, 0, 2*Math.PI);
+                    Canvas.midground.context.stroke();
+                    Canvas.background.context.beginPath();
+                    Canvas.background.context.arc(Canvas.pctX(33.33), Canvas.pctY(33.33), r, 0, 2*Math.PI);
+                    Canvas.background.context.stroke();
+                }
+                
+                //end of canvas test
+            }
+
+            var lightning1 = new Lightning();
+            
+            //function      :Animate(frameNumber)
+            //parameters    :frameNumber - the current frame in the animation
+            //description   :this function controls the Animation of the lightning
+            //              :it uses setTimeout to call itself and waits a random
+            //              :period of time between each lightning strike
+            //              :Animate.stop() will stop the animation.
+            //              :The animation is done on the midground canvas.
+            function Animate(frameNumber)
+            {
+                var frameLength = 33;//milliseconds
+                var numFrames = 20;
+                var depth = 20;
+                var xPos = 0;
+                var yPos = 0;
+                var size = 0;
+                var timer;
+                
+                //clear the midground layer
+                Canvas.midground.context.clearRect(0,0, Canvas.pctX(100), Canvas.pctY(100));
+                
+                xPos = Math.random() * Canvas.pctX(100);
+                yPos = Math.random() * Canvas.pctY(50);
+                size = Canvas.pctY(5) + Math.random() * Canvas.pctY(5);
+                
+                //GetFrame(frameNumber, hue, context, x, y, size, angle, spread, maxFork, depth)
+                lightning1.GetFrame(frameNumber, 
+                                   Math.random() * 360,  
+                                   Canvas.midground.context,
+                                   xPos, 
+                                   yPos, 
+                                   size, 
+                                   (Math.random() * Math.PI), 
+                                   (Math.PI / 4) * 3, 
+                                   2, 
+                                   depth);
+
+                                   
+                if (frameNumber < numFrames)
+                {
+                    var nextFrame = (frameNumber + 1);
+                    timer = setTimeout("Animate("+ nextFrame +");", frameLength); 
+                }
+                else
+                {
+                    //wait up to n milliseconds for another flash
+                    var n = 2000;
+                    
+                    timer = setTimeout("Animate(0);", Math.random() * n);
+                }
+                
+                Animate.stop = function()
+                {
+                    clearTimeout(timer);
+                };
+            }
+            
+            //function      :Clouds(context)
+            //parameter     :context - the device context of the canvas element
+            //              :to be drawn on
+            //description   :given a context, this will draw a procedurally created
+            //              :cloud texture on with an alpha channel transparency
+            //              :allowing the image displayed behind to flash 
+            //              :this will illuminate the clouds for the flash of lightning
+            function Clouds(context)
+            {
+                var simplex = new SimplexNoise();
+                var imageData = context.createImageData(context.canvas.width,context.canvas.height);
+                
+                //the for loops step by two to quarter the resolution
+                //thereby speeding up the rendering
+                for (var x = 0; x < imageData.width; x+=2)
+                {
+                    for (var y = 0; y < imageData.height; y+=2)
+                    {
+                        //because using a flat x and y cooridinate looks ugly
+                        //I distort the x and y plane using simplex noise, this
+                        //creates the effect of warbling glass
+                        var curveY = y + simplex.noise3D(x / Canvas.pctY(500), y / Canvas.pctY(500), 350) * 
+                                         Canvas.pctY(20) +
+                                         simplex.noise3D(x / Canvas.pctY(100), y / Canvas.pctY(200), 350) * 
+                                         Canvas.pctY(5);
+                                     
+                        var curveX = x + simplex.noise3D(x / Canvas.pctY(1000), y / Canvas.pctY(2000), 125) * 
+                                         simplex.noise3D(x / Canvas.pctY(500), y / Canvas.pctY(200), 125) *
+                                         Canvas.pctY(20);
+                        
+                        
+                        var toDark = y / imageData.height; 
+                        var toOpaque = 1 - toDark; 
+                        var cloudNoise = 0;
+                        
+                        //a careful mix of simplex noise to make the clouds
+                        //the pattern is such, I divide the dimension by the 
+                        //period to get the mean distance between light and dark
+                        //to equal the period in pixels. So that I do not get the
+                        //same pattern overlapping I use a different seed value.
+                        //simplex.noise3D( x / xPeriod, y / yPeriod, seed)
+                        cloudNoise = (simplex.noise3D(curveX  / Canvas.pctX(0.1) , curveY / Canvas.pctY(0.1), 600)  +
+                                          simplex.noise3D(curveX  / Canvas.pctX(100) , curveY / Canvas.pctY(100), 600) * 5 + 
+                                          simplex.noise3D(curveX  / Canvas.pctX(80) , curveY / Canvas.pctY(80), 500) * 2 +
+                                          simplex.noise3D(curveX  / Canvas.pctX(40) , curveY / Canvas.pctY(40), 400) +
+                                          simplex.noise3D(curveX  / Canvas.pctX(15) , curveY / Canvas.pctY(15), 300) +  
+                                          simplex.noise3D(curveX  / Canvas.pctX(10) , curveY / Canvas.pctY(10), 200) +
+                                          simplex.noise3D(curveX  / Canvas.pctX(5) , curveY / Canvas.pctY(5), 100));
+                        
+                        //the mask is the transparent part of the clouds that is lit up from behind
+                        var mask = simplex.noise3D(curveX  / Canvas.pctX(50) , curveY / Canvas.pctY(30), 1000) +
+                                   simplex.noise3D(curveX  / Canvas.pctX(70) , curveY / Canvas.pctY(10), 900) +
+                                   simplex.noise3D(curveX  / Canvas.pctX(30) , curveY / Canvas.pctY(10), 2100) +
+                                   simplex.noise3D(curveX  / Canvas.pctX(20) , curveY / Canvas.pctY(5), 800);
+                        
+                        if ( mask < 0.0)
+                        {
+                            cloudNoise += mask;
+                        }                       
+                        
+                        var r = (Math.floor(cloudNoise * 32) + 224) * toDark;
+                        var g = (Math.floor(cloudNoise * 64) + 192) * toDark;
+                        var b = (Math.floor(cloudNoise * 128) + 128) * toDark;
+                        var a = (Math.floor(((cloudNoise - 0.5)* 2) * 32) + 224) * toOpaque;
+                        
+                        //to speed up the cloud render it is done at a quarter 
+                        //of the resolution
+                        setPixel(imageData, x, y, r, g, b, a * toOpaque);
+                        setPixel(imageData, x + 1, y, r, g, b, a * toOpaque);
+                        setPixel(imageData, x + 1, y + 1, r, g, b, a * toOpaque);
+                        setPixel(imageData, x, y + 1, r, g, b, a * toOpaque);
+                    }
+                }
+                context.putImageData(imageData, 0, 0);
+            }
+
+            //function          :PolarToRectangle(angle, length)
+            //parameters        :angle - the angle of the vector
+            //                  :length - the magnitude of the vector
+            //description       :this function takes an angle & length
+            //                  :pair and converts it to an x & y pair
+            //returns           :an object containing the new angle and length
+            //                  :{x : xValue, y : yValue}
+            PolarToRectangle = function(angle, length)
+            {
+                var result = new Object();
+
+                result.x = Math.cos(angle) * length;
+                result.y = Math.sin(angle) * length;
+
+                return result;
+            };
+
+            //function          :RectangleToPolar(x, y)
+            //parameters        :x, y, - the coordinates to convert to polar
+            //description       :this function takes an x & y pair and converts 
+            //                  :it to an angle & length pair
+            //returns           :an object containing the new angle and length
+            //                  :{angle : angleValue, length : lengthValue}
+            RectangleToPolar = function(x, y)
+            {
+                var result = new Object();
+
+                var h = Math.sqrt(Math.pow(x, 2) + Math.pow(y, 2));
+
+                result.angle = Math.atan2(y, x);
+
+                result.length = h;
+
+                return result;
+            };
+            
+            //function      :Velocity()
+            //description   :This function models a velocity vector and 
+            //              :has a method for summing two of these vectors.
+            //              :This class also tracks angular velocity.
+            function Velocity()
+            {        
+                //vector
+                this.angle = 0; //radians
+                this.value = 0; //pixels per second
+                
+                //angular velocity
+                this.rotation = 0; //radians per second
+                
+                //function          :TimePassed(milliseconds)
+                //parameter         :milliseconds - the amount of time passed
+                //description       :this function calculates the distance
+                //                  :traveled and the amount of rotation
+                //returns           :.xDelta - the change in x
+                //                  :.yDelta - the change in y
+                //                  :.angleDelta - the change in angle
+                this.TimePassed = function(milliseconds)
+                {
+                    var result = new Object();
+                    var seconds = milliseconds / 1000;
+                    
+                    result.xDelta = Math.cos(this.angle) * this.value * seconds;
+                    result.yDelta = -Math.sin(this.angle) * this.value * seconds;
+                    
+                    result.angleDelta = this.rotation * seconds;
+                    
+                    return result;
+                };   
+
+                //function      :Velocity.Add(vel1, vel2)
+                //parameters    :vel1, vel2 - the velocities to add
+                //description   :this function takes two velocities and returns
+                //              :their sum
+                //returns       :
+                Velocity.Add = function(vel1, vel2)
+                {
+                    var rect1 = Velocity.PolarToRectangle(vel1.angle, vel1.value);
+                    var rect2 = Velocity.PolarToRectangle(vel2.angle, vel2.value);
+                    
+                    var rectSum = new Object();
+                    
+                    rectSum.x = rect1.x + rect2.x;
+                    rectSum.y = rect1.y + rect2.y;
+                    
+                    var resultVelocity = new Velocity();
+                    var polar = Velocity.RectToPolar(rectSum.x, rectSum.y);
+                    
+                    resultVelocity.angle = polar.angle;
+                    resultVelocity.value = polar.length;
+                    
+                    resultVelocity.rotation = vel1.rotation + vel2.rotation;
+                    
+                    return resultVelocity;
+                };//Velocity.Add               
+            }
+            
+            //class         :Position()
+            //description   :This function holds a set of attributes that describe
+            //              :a position and orientation in a 2D space.
+            function Position()
+            {
+                this.x = 0; //pixels
+                this.y = 0; //pixels
+                
+                this.s = 1; //scale
+                
+                this.orientation = 0; //radians
+                
+                //function      :this.Transform(matrix)
+                //parameters    :matrix - this is the transformation matrix
+                //description   :http://en.wikipedia.org/wiki/Transformation_matrix
+                //              :the matrix will contain three variables, x, y, s
+                //              :
+                //              :to rotate, given t is the angle
+                //              :matrix[0][0] = cos t, matrix[0][1] = sin t, matrix[0][2] = 0
+                //              :matrix[1][0] = -sin t, matrix[1][1] = cos t, matrix[1][2] = 0
+                //              :matrix[2][0] = 0, matrix[2][1] = 0, matrix[2][2] = 1 
+                //              :
+                //              :to translate, given xd is the x displacement and
+                //              :yd is the y displacement;
+                //              :matrix[0][0] = 1, matrix[0][1] = 0, matrix[0][2] = xd
+                //              :matrix[1][0] = 0, matrix[1][1] = 1, matrix[1][2] = yd
+                //              :matrix[2][0] = 0, matrix[2][1] = 0, matrix[2][2] = 1 
+                this.Transform = function(matrix)
+                {
+                    var newX = (matrix[0][0] * this.x) + (matrix[0][1] * this.y) + (matrix[0][2] * this.s);
+                    var newY = (matrix[1][0] * this.x) + (matrix[1][1] * this.y) + (matrix[1][2] * this.s);
+                    var newS = (matrix[2][0] * this.x) + (matrix[2][1] * this.y) + (matrix[2][2] * this.s);
+                    
+                    this.x = newX;
+                    this.y = newY;
+                    this.s = newS;
+                };
+            }
+                  
+            //function      :Particle()
+            //description   :This function models a particle by keeping track of 
+            //              :its position and velocity
+            function Particle()  
+            {
+                if (typeof(this.position) === 'undefined')
+                {
+                    this.position = new Position();
+                    this.velocity = new Velocity();
+                    this.colour = "#000000";
+                }
+                
+                //function      :this.TimePassed(now, lastUpdate)
+                //parameters    :now
+                this.TimePassed = function(now, lastUpdate)
+                {
+                    var timePassed = now - lastUpdate;
+                    
+                    var delta = this.velocity.TimePassed(timePassed);
+                    
+                    this.position.x += delta.xDelta;
+                    this.position.y += delta.yDelta;
+                    this.position.orientation += delta.xAngle;
+                };
+                
+                //function      :this.Draw
+                //parameters    :context - the drawing context
+                //              :drawFunction - a function with the prototype 
+                //              :function(context, x, y)
+                //description   :with a given context and drawFunction this 
+                //              :
+                this.Draw = function(context, drawFunction)
+                {
+                    drawFunction(context, this);
+                };
+            }//Particle()
+            
+            //function      :DotParticle(context, particle)
+            //parameters    :context - this is the drawing context
+            //              :particle - this is the particle being drawn
+            //description   :this is a used as a callback function passed during the
+            //              :call to Particle.Draw()
+            function DotParticle(context, particle)
+            {
+                var dotRadius = 1;
+                
+                context.strokeStyle = particle.colour; 
+                context.fillStyle = particle.colour;
+                
+                if (dotRadius > 1)
+                {
+                    context.beginPath();
+                    context.moveTo(particle.position.x, particle.position.y);
+                    context.arc(particle.position.x + 1, particle.position.y + 1, dotRadius, 0, Math.PI * 2);
+                    context.stroke();
+                    context.fill();
+                }
+                else
+                {
+                    context.beginPath();
+                    context.moveTo(particle.position.x, particle.position.y);
+                    context.rect(particle.position.x, particle.position.y, 2, 2);
+                    context.fill();
+                }
+            }//Dot particle
+            
+            function StartUp()
+            {
+               
+                var userAgent = navigator.userAgent.toLowerCase();
+                var mobile = false;
+                var mobileString = ["iphone", 
+                                    "ipad", 
+                                    "blackberry",
+                                    "android"];
+                Canvas();
+                
+                //check for mobile
+                for (var i = 0; i < mobileString.length; i++)
+                {
+                    if (userAgent.search(mobileString[i]) !== -1)
+                    {
+                        mobile = true;
+                    }
+                }
+                
+                if (Canvas.width > 500 && mobile === false)
+                {
+                    //start rain
+                    setInterval("TimeStep();", 33);
+
+                    //turn the background black
+                    var context = Canvas.background.context;
+
+                    context.fillStyle = "#000000";
+                    context.beginPath();
+                    context.rect(0,0,Canvas.width, Canvas.height);
+                    context.fill();
+
+                    //CanvasTest();
+                    Canvas.background.context.fillStyle = "#000000";
+                    Canvas.background.context.fillRect(0,0,Canvas.pctX(100),Canvas.pctY(100));
+
+                    var branch = new Branch();
+
+                    //draw trees
+                    for (var b = 0; b < 5; b++)
+                    {
+                        branch.x = Canvas.pctX(Math.random() * 100.0);
+                        branch.y = Canvas.pctY(120.0);
+                        branch.angle = Math.PI / 2  + Math.random() - 0.5;
+                        branch.length = Canvas.pctY(5.0 + Math.random() * 15.0);
+                        branch.width = Canvas.pctY(2.0);
+                        branch.depth = 8;
+
+                        DrawBranch(branch, Canvas.sillouette.context);
+                    }
+
+                    Clouds(Canvas.backgroundMask.context);
+                    setTimeout("Animate(0);", 0);
+                }
+                else
+                {
+                    Clouds(Canvas.backgroundMask.context);
+                    Canvas.background.context.fillStyle = "#000000";
+                    Canvas.background.context.fillRect(0,0,Canvas.pctX(100),Canvas.pctY(100));
+                    
+                    Canvas.foreground.context.textAlign = "center";
+                    Canvas.foreground.context.font = "15px Arial";
+                    Canvas.foreground.context.strokeStyle = "#ffffff";
+                    Canvas.foreground.context.fillStyle = "#ffffff";
+                    Canvas.foreground.context.fillText("Sorry, mobile support not implemented", Canvas.pctX(50), Canvas.pctY(50));
+                }
+            };//StartUp()
+            
+            //function          :TimeStep()
+            //description       :This function is called at each time interval
+            //                  :it will increment and draw all the particles.
+            function TimeStep()
+            {
+                var numParticles = 2000;
+
+                if (typeof(TimeStep.lastUpdate) === 'undefined')
+                {
+                    TimeStep.particle = new Array();
+                    TimeStep.lastUpdate = new Date().getTime();
+                    
+                    for (var i = 0; i < numParticles; i ++)
+                    {
+                        TimeStep.particle.push(new Particle());
+                
+                        TimeStep.particle[i].position.x = Math.random() * Canvas.width;
+                        TimeStep.particle[i].position.y = Math.random() * Canvas.height;
+
+                        TimeStep.particle[i].velocity.value = 1000;
+                        TimeStep.particle[i].velocity.angle = -(Math.random() * Math.PI/4) - Math.PI/8;
+                    }
+                }
+                else 
+                {
+                    for (var i = 0; i < numParticles; i ++)
+                    {
+                        //perturb the particles with noise
+                        TimeStep.particle[i].velocity.value += simplex.noise3D(TimeStep.particle[i].position.x / Canvas.pctX(10), 
+                                                                           TimeStep.particle[i].position.y / Canvas.pctY(10), 
+                                                                           TimeStep.lastUpdate / 10000) * 
+                                                            simplex.noise3D(TimeStep.particle[i].position.x / Canvas.pctX(50), 
+                                                                           TimeStep.particle[i].position.y / Canvas.pctY(50), 
+                                                                           TimeStep.lastUpdate / 1000) *
+                                                                                   Canvas.pctY(5) + Canvas.pctY(5);
+                        TimeStep.particle[i].velocity.angle = (simplex.noise3D(TimeStep.particle[i].position.x / Canvas.pctX(50), 
+                                                                           TimeStep.particle[i].position.y / Canvas.pctY(20), 
+                                                                           TimeStep.lastUpdate / 1000) *
+                                                                simplex.noise3D(TimeStep.particle[i].position.x / Canvas.pctX(150), 
+                                                                           TimeStep.particle[i].position.y / Canvas.pctX(90), 
+                                                                           TimeStep.lastUpdate / 10000) * 
+                                                                                   (Math.PI / 2)) - Math.PI / 3;
+                        var newLum = (simplex.noise3D(TimeStep.particle[i].position.x / Canvas.pctX(100), 
+                                                  TimeStep.particle[i].position.y / Canvas.pctY(50), 
+                                                  TimeStep.lastUpdate / 10000)) * 50 + 50;
+                        var newColour = "hsla(" + 
+                                        Math.floor(Math.random() * 360) + 
+                                        ", 100%, " + Math.floor(newLum) +"%, 0.5)";
+                        
+                        TimeStep.particle[i].colour = newColour;                                                  
+                    }
+                }
+                
+                var now = new Date().getTime();
+            
+                Canvas.foreground.context.clearRect(0,0,Canvas.width, Canvas.height);
+                
+                for (var i = 0; i < numParticles; i ++)
+                {     
+                    TimeStep.particle[i].TimePassed(now, TimeStep.lastUpdate);
+
+                    TimeStep.particle[i].Draw(Canvas.foreground.context, DotParticle);
+                    
+                    var edgeX = Math.abs(TimeStep.particle[i].position.x) % Canvas.width;
+                    var edgeY = Math.abs(TimeStep.particle[i].position.y) % Canvas.height;
+                    
+                    if ((edgeX !== TimeStep.particle[i].position.x)||
+                        ((edgeY !== TimeStep.particle[i].position.y)&&
+                         (edgeX >= (Canvas.width * -2))
+                          ))
+                    {
+                        //gone over edge, negative 2x the width to create equal
+                        //density rain across the horizontal
+                        //edgeX >= (Canvas.width * -2) from ^^up there in the if
+                        TimeStep.particle[i].position.x = Math.random() * Canvas.width * 2;
+                        TimeStep.particle[i].position.y = Math.random() * Canvas.height;
+
+                        //reset velocity
+                        TimeStep.particle[i].velocity.value = 1000;
+                    }
+                }
+                
+                TimeStep.lastUpdate = new Date().getTime();
+            }
+        </script>
+        <style>
+            body
+            {
+                position : fixed;
+                top      : 0;
+                left     : 0;
+                width: 100%;
+                height: 100%;  
+                margin:0; 
+                padding:0;
+                border:2px;
+            }
+            .layer00     
+            {
+                position : fixed;
+                top      : 0;
+                left     : 0;
+                z-index  : 0;
+                width: 100%;
+                height: 100%;
+                margin:0; 
+                padding:0;
+                border:2px;
+            }
+            .layer01     
+            {
+                position : fixed;
+                top      : 0;
+                left     : 0;
+                z-index  : 1;
+                width: 100%;
+                height: 100%;
+                margin:0; 
+                padding:0;
+                border:2px;
+                -webkit-filter: blur(1px);
+            }
+            .layer02     
+            {
+                position : fixed;
+                top      : 0;
+                left     : 0;
+                z-index  : 2;
+                width: 100%;
+                height: 100%;
+                margin:0; 
+                padding:0;
+                border:2px;
+                -webkit-filter: blur(0.5px);
+            }
+            .layer03     
+            {
+                position : fixed;
+                top      : 0;
+                left     : 0;
+                z-index  : 3;
+                width: 100%;
+                height: 100%;
+                margin:0; 
+                padding:0;
+                border:2px;
+            }
+            .layer04     
+            {
+                position : fixed;
+                top      : 0;
+                left     : 0;
+                z-index  : 3;
+                width: 100%;
+                height: 100%;
+                margin:0; 
+                padding:0;
+                border:2px;
+            }
+        </style>
+    </head>
+    <body onload="StartUp();">
+        <div class="layer00">
+            <canvas id="background" width="1" height="1"></canvas>
+        </div>
+        <div class="layer01">
+            <canvas id="backgroundMask" width="1" height="1"></canvas>
+        </div>
+        <div class="layer02">
+            <canvas id="midground" width="1" height="1"></canvas>
+        </div>
+        <div class="layer03">
+            <canvas id="sillouette" width="1" height="1"></canvas>
+        </div>
+        <div class="layer04">
+            <canvas id="foreground" width="1" height="1"></canvas>
+        </div>
+    </body>
+</html>
