@@ -1,0 +1,22 @@
+<!--
+Ken Jinks
+April 28 2014
+This is the display portion for TheArtOTronV2.
+The second version of TheArtOTron is a major refactoring of the code.
+The code has become easier to read and manage.
+-->
+<!DOCTYPE html>
+<html>
+    <head>
+        <title></title>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+        <script type="text/javascript" src="simplex.js"></script>
+        <script type="text/javascript" src="theArtOTronV2.js"></script>
+    </head>
+    <body onload="startUp();">
+        <div>
+            <canvas id="layer000" width="1" height="1" onclick="toImage();"></canvas>
+            <img id="imageHolder" src=""/>
+        </div>
+    </body>
+</html>
