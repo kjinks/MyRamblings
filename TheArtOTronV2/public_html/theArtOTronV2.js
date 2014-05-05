@@ -15,6 +15,12 @@ function Col()
     this.b = 0;
     this.a = 0;    
     
+    this.h = 0;
+    this.s = 0;
+    this.v = 0;
+    
+
+    
     //function      :SetHSVA(h, s, v, a)
     //parameters    :h - hue in radians 0 - 2PI
     //              :s - saturation - 0(grey) - 1(normal) - 2(over)
@@ -35,10 +41,26 @@ function Col()
         var g2 = ((g1 - average) * s) + average;
         var b2 = ((b1 - average) * s) + average;
         
+        this.h = h;
+        this.s = s;
+        this.v = v;
+        
         this.r = Math.floor(r2 * 255);
         this.g = Math.floor(g2 * 255);
         this.b = Math.floor(b2 * 255);
         this.a = a * 255;
+    };
+    
+    //function      :UpdateRGB()
+    //description   :Used to convert the current HSV values into RGB.
+    //              :This will be replaced once I refactor this with
+    //              :defineProperties then this function will be deprecated.
+    this.UpdateRGB = function()
+    {
+        //sethsva expects alpha to be in the range 0-1
+        //rgba are all with the range 0-255, so I derive 0-1 from the 0-255
+        this.SetHSVA(this.h, this.s, this.v, this.a / 255);
+        
     };
 }
 
@@ -725,7 +747,6 @@ var TextureGenTest =
 //              :
 //Date          :May 1 2014
 //description   :This function contains the methods for generating trees.
-
 function InstaTree(options)
 {
     this.trunk = {width : {start : 20, end : 1}, 
@@ -1084,9 +1105,146 @@ var InstaTreeTest =
     }}    
 };
 
-//function      :InstaMountains()
+//function      :InstaRaspberry()
+//Date          :May 4 2014
+//description   :Instant raspberries, what more can I say? I will be using a 
+//              :combination of fractal geometry and parametric noise to produce
+//              :raspberries. They will be configurable by hue, size, orientation,
+//              :number of seeds, and specular details.
+function InstaRaspberry()
+{
+    var colour = new Col();
+    var size = {topNumCells : 20, numRings : Canvas.pctX(10)};
 
-
+    Object.defineProperties(this, 
+    {
+        //accessors
+        "hue" : 
+        {
+     configurable : false,
+        writeable : false,
+       enumerable : false,
+              get : function() 
+                    {
+                        return colour.h;
+                    },
+              set : function(newValue) 
+                    {
+                        //clamp the newValue to 0-2PI
+                        while (newValue > (Math.PI * 2))                        
+                        {
+                            newValue -= Math.PI * 2;
+                        }
+                        
+                        while (newValue < 0)
+                        {
+                            newValue += Math.PI * 2;
+                        }
+                        
+                        //set the new value
+                        colour.h = newValue;
+                        colour.UpdateRGB();
+                    }
+        },
+        
+        "saturation" : 
+        {
+     configurable : false,
+        writeable : false,
+       enumerable : false,
+              get : function() 
+                    {
+                        return colour.s;
+                    },
+              set : function(newValue) 
+                    {
+                        //set the new value
+                        colour.s = newValue;
+                        colour.UpdateRGB();
+                    }
+        },    
+        
+        "value" : 
+        {
+     configurable : false,
+        writeable : false,
+       enumerable : false,
+              get : function() 
+                    {
+                        return colour.v;
+                    },
+              set : function(newValue) 
+                    {
+                        //set the new value
+                        colour.v = newValue;
+                        colour.UpdateRGB();
+                    }
+        },      
+                
+        "size" :
+        {
+     configurable : false,
+        writeable : false,
+       enumerable : false,
+              get : function() 
+                    {
+                        return colour.v;
+                    },
+              set : function(newValue) 
+                    {
+                        //set the new value
+                        colour.v = newValue;
+                        colour.UpdateRGB();
+                    }
+        },
+        
+        //methods
+        "Draw" : 
+        {
+            value : function(x, y, context)
+            {
+                context.beginPath();
+                context.fillStyle = "rgba("+colour.r+","+colour.g+","+colour.b+", 1)";
+                context.arc(Canvas.pctX(50 + x), Canvas.pctY(50 + y), Canvas.pctY(10), 0, Math.PI * 2);
+                context.fill();
+            }, 
+     configurable : false,
+        writeable : false,
+       enumerable : false  
+        }  
+    });
+    
+}
+var InstaRaspberryTest = 
+{
+    functionalPositive :
+    {t1 : function(context)
+        {
+            //this test demonstrates that assigned colours do not effect other
+            //instantiation's assigned colour
+            var rasp = [new InstaRaspberry(), 
+                        new InstaRaspberry(),
+                        new InstaRaspberry(),
+                        new InstaRaspberry()];
+            
+            for (var r = 0; r < rasp.length; r++)
+            {
+                
+                rasp[r].hue = r * (Math.PI / rasp.length); //range 0-2PI, 0 - red, 2.09 - blue, 4.18 - green     
+                rasp[r].saturation = 2;
+                rasp[r].value = 0.4;
+                rasp[r].Draw(r * 5 , r * 5, context);
+            }
+            
+            for (var r = 0; r < rasp.length; r++)
+            {
+                rasp[r].Draw(r * 5 , (r * 5) + 10, context);
+            }       
+            
+            var a = 0;
+        }
+    }
+};
 //function      :toImage(canvas, image);
 //Date          :May 3 2014
 //description   :This function will convert the canvas into an image that can 
@@ -1110,11 +1268,12 @@ function startUp()
     //tests
     //ParametricNoiseTest.functionalExceptionTest.t1();
     //ParametricNoiseTest.functionalPositiveTest.t1(Canvas.layer[0].context);
-    ParametricNoiseTest.functionalPositiveTest.t2(Canvas.layer[0].context);
+    //ParametricNoiseTest.functionalPositiveTest.t2(Canvas.layer[0].context);
     //InstaPaletteTest.functionalPositive.t1(Canvas.layer[0].context);
     //InstaMapTest.functionalPositive.t1(Canvas.layer[0].context);
     //TextureGenTest.functionalPositive.t2(Canvas.layer[0].context);
     //TextureGenTest.functionalPositive.t3(Canvas.layer[0].context);
     //InstaTreeTest.functionalPositive.t1(Canvas.layer[0].context);
     //InstaTreeTest.functionalPositive.t2(Canvas.layer[0].context);
+    InstaRaspberryTest.functionalPositive.t1(Canvas.layer[0].context);
 }
